@@ -77,7 +77,7 @@ export function download(blob, name) {
   setTimeout(() => URL.revokeObjectURL(url), 4000);
 }
 
-export async function zipOutputs(outputs, name = 'pagewise.zip') {
+export async function zipOutputs(outputs, name = 'editsupreme.zip') {
   const zip = new JSZip();
   const used = new Set();
   for (const o of outputs) {

@@ -355,7 +355,7 @@ export const tools = {
         }
         const twip = (pt) => Math.round(pt * 20);
         const margin = o.layout === 'exact' ? twip(28) : twip(72);
-        const d = new Document({ creator: 'Pagewise', sections: [{ properties: { page: { size: { width: twip(pageW), height: twip(pageH) }, margin: { top: margin, bottom: margin, left: margin, right: margin } } }, children }] });
+        const d = new Document({ creator: 'EditSupreme', sections: [{ properties: { page: { size: { width: twip(pageW), height: twip(pageH) }, margin: { top: margin, bottom: margin, left: margin, right: margin } } }, children }] });
         outputs.push({ name: stem(f.name) + '.docx', blob: await Packer.toBlob(d) });
         doc.destroy();
       }

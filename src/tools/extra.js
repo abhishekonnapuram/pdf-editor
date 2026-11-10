@@ -27,7 +27,7 @@ async function mountForms(el, [file], ctx) {
   if (!fields.length) {
     el.replaceChildren(h('div', { class: 'panel', style: { maxWidth: '720px', margin: '0 auto' } },
       h('h3', {}, 'This PDF has no fillable fields yet'),
-      h('p', { class: 'status' }, 'Turn it into a fillable form: Pagewise can find blank lines (____) and boxes (☐) and put fields there, or you can place fields yourself.'),
+      h('p', { class: 'status' }, 'Turn it into a fillable form: EditSupreme can find blank lines (____) and boxes (☐) and put fields there, or you can place fields yourself.'),
       h('div', { class: 'chain', style: { justifyContent: 'flex-start' } },
         h('button', { class: 'btn primary', type: 'button', onclick: () => startDesigner(true) }, h('span', { html: icon('ai') }), 'Detect fields automatically'),
         h('button', { class: 'btn', type: 'button', onclick: () => startDesigner(false) }, h('span', { html: icon('field') }), 'Place fields by hand'),
@@ -241,10 +241,10 @@ export async function runWorkflow(wf, files, simple, progress) {
 function serverPage(title, why, now) {
   return () => h('div', { class: 'panel', style: { maxWidth: '760px', margin: '0 auto 40px' } },
     h('div', { class: 'ticon lg', style: { '--tc': 'var(--c-security)' }, html: icon('server') }),
-    h('h2', { style: { margin: '12px 0 6px' } }, `${title} needs the Pagewise server`),
+    h('h2', { style: { margin: '12px 0 6px' } }, `${title} needs the EditSupreme server`),
     h('p', {}, why),
     h('div', { class: 'notice info' }, h('b', {}, 'What you can do now: '), now),
-    h('p', { class: 'status' }, 'Every other tool runs fully on your device. This one will switch on automatically when the app is connected to a Pagewise server.'));
+    h('p', { class: 'status' }, 'Every other tool runs fully on your device. This one will switch on automatically when the app is connected to an EditSupreme server.'));
 }
 
 export const tools = {

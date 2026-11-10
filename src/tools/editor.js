@@ -54,7 +54,7 @@ const HINTS = {
   select: 'Click an item to select it. Drag to move, use the corner handle to resize. Double-click text to edit it.',
   edittext: 'Existing text is outlined in purple. Click any line to change its wording, font, size or colour. On save the original words are removed from the file, not just covered.',
   editimage: 'Images in the PDF are outlined in blue. Click one to move, resize, crop, recolour, replace, erase parts of it or delete it.',
-  imgtext: 'Click an image or a scanned page. Pagewise reads the words in it; then click any highlighted line to retype it. The old letters are erased and the background is rebuilt.',
+  imgtext: 'Click an image or a scanned page. EditSupreme reads the words in it; then click any highlighted line to retype it. The old letters are erased and the background is rebuilt.',
   text: 'Click on the page where the text should go, then type.',
   rect: 'Drag on the page to draw.', ellipse: 'Drag on the page to draw.', line: 'Drag on the page to draw.', arrow: 'Drag on the page to draw.',
   pen: 'Draw freely with mouse, finger or stylus.', highlight: 'Drag across text to highlight it.',
@@ -1308,7 +1308,7 @@ export async function mountEditor(el, file, ctx, modeName = 'edit', opts = {}) {
       doc.removePage(p.i + 1);
     }
     // Redacted documents shouldn't leak details through their metadata either.
-    doc.setTitle(''); doc.setAuthor(''); doc.setSubject(''); doc.setKeywords([]); doc.setCreator('Pagewise'); doc.setProducer('Pagewise');
+    doc.setTitle(''); doc.setAuthor(''); doc.setSubject(''); doc.setKeywords([]); doc.setCreator('EditSupreme'); doc.setProducer('EditSupreme');
     v.destroy();
     return doc.save();
   }

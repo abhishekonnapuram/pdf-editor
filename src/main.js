@@ -14,7 +14,7 @@ let query = '';
 
 window.addEventListener('beforeinstallprompt', (e) => { e.preventDefault(); installPrompt = e; renderInstall(); });
 
-// Desktop PWA: "Open with Pagewise" from the OS file manager.
+// Desktop PWA: "Open with EditSupreme" from the OS file manager.
 if ('launchQueue' in window) {
   window.launchQueue.setConsumer(async (params) => {
     if (!params.files?.length) return;
@@ -29,7 +29,7 @@ function header() {
     ['merge', 'split', 'compress', 'edit', 'sign', 'ocr'].map((id) => h('a', { href: '#/tool/' + id }, toolById(id).name.replace(' PDF', ''))),
     h('a', { href: '#/' }, 'All tools'));
   return h('header', { class: 'topbar' },
-    h('a', { class: 'brand', href: '#/' }, h('img', { src: './icon.svg', alt: '' }), 'Pagewise'),
+    h('a', { class: 'brand', href: '#/', 'aria-label': 'EditSupreme home' }, h('img', { src: './logo.png', alt: 'EditSupreme', width: 116, height: 44 })),
     nav, h('div', { class: 'spacer' }), h('span', { id: 'installslot' }));
 }
 
@@ -86,7 +86,7 @@ function home() {
         feature('offline', 'Offline-ready', 'After the first visit everything keeps working without internet. OCR languages are downloaded once, then cached.'),
         feature('shield', 'Nothing is uploaded', 'Processing happens in your browser. No accounts, no file limits, no waiting in a queue.'),
         feature('workflow', 'Chain tools together', 'Send a result straight into another tool, or save a reusable workflow that runs several steps at once.'))),
-    h('footer', { class: 'footer' }, `Pagewise · PDF tools that run on your device · ${new Date().getFullYear()}`));
+    h('footer', { class: 'footer' }, `EditSupreme · Your complete PDF editing solution · Runs on your device · ${new Date().getFullYear()}`));
 }
 
 const feature = (ic, title, text) => h('div', { class: 'feature' }, h('div', { class: 'ticon', style: { '--tc': 'var(--accent)' }, html: icon(ic) }), h('h3', {}, title), h('p', {}, text));
@@ -94,7 +94,7 @@ const feature = (ic, title, text) => h('div', { class: 'feature' }, h('div', { c
 async function toolPage(id) {
   const meta = toolById(id);
   if (!meta) { location.hash = '#/'; return h('div'); }
-  document.title = `${meta.name} – Pagewise`;
+  document.title = `${meta.name} – EditSupreme`;
   const main = h('main', { class: 'wrap' });
   main.append(h('a', { class: 'back', href: '#/', html: icon('left') + ' All tools' }),
     h('div', { class: 'toolhead' }, h('div', { class: 'ticon lg', style: { '--tc': CAT_COLOR[meta.cat] }, html: icon(meta.icon) }),
@@ -186,7 +186,7 @@ async function route() {
     const page = await toolPage(m[1]);
     app.append(page);
   } else {
-    document.title = 'Pagewise – PDF tools';
+    document.title = 'EditSupreme – Your Complete PDF Editing Solution';
     app.append(home());
   }
   window.scrollTo(0, 0);

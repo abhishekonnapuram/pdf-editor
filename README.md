@@ -1,6 +1,6 @@
-# Pagewise – PDF tools
+# EditSupreme – Your Complete PDF Editing Solution
 
-An installable web app (PWA) with 33 PDF tools. Every file is processed on the user's own device: nothing is uploaded, and after the first visit it works offline. One codebase runs in any modern browser on Windows, macOS, Linux, Android, iPhone and iPad, and can be installed like a native app.
+Live at https://editsupreme.com. An installable web app (PWA) with 33 PDF tools. Every file is processed on the user's own device: nothing is uploaded, and after the first visit it works offline. One codebase runs in any modern browser on Windows, macOS, Linux, Android, iPhone and iPad, and can be installed like a native app.
 
 ## Run it
 

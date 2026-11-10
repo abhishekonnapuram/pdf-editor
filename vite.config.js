@@ -8,20 +8,21 @@ export default defineConfig({
   plugins: [
     VitePWA({
       registerType: 'autoUpdate',
-      includeAssets: ['icon.svg'],
+      includeAssets: ['favicon-16.png', 'favicon-32.png', 'favicon-48.png', 'apple-touch-icon.png', 'logo.png'],
       manifest: {
-        name: 'Pagewise – PDF tools',
-        short_name: 'Pagewise',
-        description: 'Merge, split, compress, convert, edit, sign and secure PDFs — privately, on your device.',
-        theme_color: '#0f5c55',
-        background_color: '#f6f4ef',
+        id: './',
+        name: 'EditSupreme – PDF Editor',
+        short_name: 'EditSupreme',
+        description: 'Edit, splice, merge, split, compress, convert, sign and secure PDFs — privately, on your device.',
+        theme_color: '#14213d',
+        background_color: '#ffffff',
         display: 'standalone',
         start_url: './',
         scope: './',
         icons: [
           { src: 'icon-192.png', sizes: '192x192', type: 'image/png' },
           { src: 'icon-512.png', sizes: '512x512', type: 'image/png' },
-          { src: 'icon-512.png', sizes: '512x512', type: 'image/png', purpose: 'maskable' }
+          { src: 'icon-maskable-512.png', sizes: '512x512', type: 'image/png', purpose: 'maskable' }
         ],
         file_handlers: [{ action: './', accept: { 'application/pdf': ['.pdf'] } }]
       },

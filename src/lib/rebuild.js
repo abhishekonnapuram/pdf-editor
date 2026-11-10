@@ -125,7 +125,7 @@ export async function buildEditablePdf(pages, title = '') {
     }
   }
   doc.setTitle(title);
-  doc.setCreator('Pagewise');
+  doc.setCreator('EditSupreme');
   return doc.save();
 }
 
@@ -181,7 +181,7 @@ export async function buildEditableDocx(pages) {
     }
     sections.push({ properties: { page: { size: { width: tw(pg.width), height: tw(pg.height) }, margin: { top: 0, right: 0, bottom: 0, left: 0, header: 0, footer: 0, gutter: 0 } } }, children });
   }
-  return Packer.toBlob(new Document({ creator: 'Pagewise', sections }));
+  return Packer.toBlob(new Document({ creator: 'EditSupreme', sections }));
 }
 
 const mctx = document.createElement('canvas').getContext('2d');
