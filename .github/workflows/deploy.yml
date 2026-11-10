@@ -1,0 +1,61 @@
+# Build the site and upload it to the GoDaddy hosting (editsupreme.com) on every push to main.
+# Needs three repository secrets (GitHub → Settings → Secrets and variables → Actions):
+#   FTP_SERVER    e.g. ftp.editsupreme.com
+#   FTP_USERNAME  the cPanel FTP account
+#   FTP_PASSWORD  its password
+# Optional variable FTP_DIR (default public_html/) if the FTP account doesn't start one level above it.
+name: Deploy to editsupreme.com
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: deploy
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - run: npm ci
+
+      # The Craft apps' official web builds (about 400 MB) are downloaded, not stored in Git.
+      # They only change when the pinned versions in the script change, so keep them between runs.
+      - name: Cache the Craft apps
+        uses: actions/cache@v4
+        with:
+          path: |
+            public/photocraft
+            public/vectorcraft
+            public/lightcraft
+            public/filmcraft
+            public/effectcraft
+            public/soundcraft
+            public/pdfcraft
+          key: crafts-${{ hashFiles('scripts/fetch-crafts.mjs') }}
+
+      - run: npm run fetch-crafts
+
+      - run: npm run build
+
+      # Uploads only files that changed since the last deploy (it keeps a small state file on the
+      # server), and never deletes anything it didn't upload, such as cgi-bin.
+      - name: Upload to GoDaddy
+        uses: SamKirkland/FTP-Deploy-Action@v4.4.0
+        with:
+          server: ${{ secrets.FTP_SERVER }}
+          username: ${{ secrets.FTP_USERNAME }}
+          password: ${{ secrets.FTP_PASSWORD }}
+          protocol: ftps
+          local-dir: ./dist/
+          server-dir: ${{ vars.FTP_DIR || 'public_html/' }}
+          timeout: 600000
