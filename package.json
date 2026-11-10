@@ -12,6 +12,7 @@
   "dependencies": {
     "@cantoo/fontkit": "^2.0.12",
     "@cantoo/pdf-lib": "^2.11.1",
+    "@huggingface/transformers": "^3.7.5",
     "@tensorflow/tfjs": "^4.11.0",
     "@upscalerjs/esrgan-slim": "^1.0.0",
     "diff": "^5.2.0",

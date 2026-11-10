@@ -30,12 +30,12 @@ npm run preview
 
 | Group | Tools |
 | --- | --- |
-| Organize | Merge, Split (ranges / every page / every N / extract), Rotate, Organize (reorder, rotate, delete, duplicate, blank pages, combine files) |
+| Organize | Merge, Split (ranges / every page / every N / extract), Remove pages, Extract pages, Rotate, Organize (reorder, rotate, delete, duplicate, blank pages, combine files) |
 | Optimize | Compress (3 levels, before/after size), Repair, OCR (12 languages incl. Hindi, Telugu, Tamil, Kannada, Marathi) |
-| Convert | PDF ↔ Word, PDF ↔ PowerPoint, PDF ↔ Excel/CSV, PDF ↔ JPG/PNG/WEBP, HTML → PDF, PDF → Markdown, PDF → Text, Scan to PDF (camera) |
+| Convert | PDF ↔ Word, PDF ↔ PowerPoint, PDF ↔ Excel/CSV, PDF ↔ JPG/PNG/WEBP, HTML → PDF, PDF → PDF/A-2b (archive, optional searchable text), PDF → Markdown, PDF → Text, Scan to PDF (camera) |
 | Edit | Edit PDF, Edit PDF images, Watermark, Page numbers, Crop, PDF Forms |
 | Security | Sign, Protect (AES-256 + permissions), Unlock, Redact |
-| Intelligence | Compare (text + visual), Summarizer (on-device) |
+| Intelligence | Compare (text + visual), AI Summarizer (Chrome/Edge built-in on-device AI, key-sentence fallback), Translate PDF (30+ languages, layout kept; built-in browser translator or offline Opus-MT models) |
 | Workflows | Chain steps (merge → rotate → watermark → number → compress → protect), save and reuse |
 
 ### Improvements over the usual PDF editor
@@ -75,7 +75,7 @@ npm run preview
 - Text-in-image editing works best on clean backgrounds (flat colours, gradients, scans). On busy photos the rebuilt background can look smoothed. The OCR engine can't tell serif from sans, so pick the font in the panel if it matters.
 - Word/Excel/HTML → PDF produce image-based pages; choose **Print to PDF** in those tools to keep text selectable. Only `.docx` / `.pptx` (not old `.doc` / `.ppt`).
 - PowerPoint → PDF rebuilds text, pictures and colours; charts, SmartArt and effects are simplified.
-- **PDF to PDF/A** and **Translate PDF** need a server (Ghostscript/veraPDF and a translation API); they show an explanation page for now. Requesting signatures from other people also needs a server.
+- **PDF to PDF/A** renders pages as images (plus an optional OCR text layer), so the original vector text is replaced by that text layer; check files with a validator such as veraPDF if you must prove compliance. **Translate PDF** draws the translation as images (so every script shapes correctly) and adds a Word/TXT copy for editable text; offline models give basic quality for some languages. Requesting signatures from other people still needs a server.
 - OCR downloads its engine and language data from a CDN the first time (then cached for offline use).
 
 ## Hosting

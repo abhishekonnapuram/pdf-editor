@@ -26,7 +26,10 @@ const mods = {
   extra: () => import('./extra.js'),
   design: () => import('./design.js'),
   fonts: () => import('./fonts.js'),
-  crafts: () => import('./crafts.js')
+  crafts: () => import('./crafts.js'),
+  pagetools: () => import('./pagetools.js'),
+  pdfa: () => import('./pdfa.js'),
+  translate: () => import('./translate.js')
 };
 
 const T = (id, name, desc, cat, icon, mod, extra = {}) => ({ id, name, desc, cat, icon, mod, ...extra });
@@ -59,8 +62,10 @@ export const TOOLS = [
   T('html-to-pdf', 'HTML to PDF', 'Convert an HTML file or pasted HTML into a PDF.', 'convert', 'html', 'convert'),
   T('unlock', 'Unlock PDF', 'Remove the password from a PDF you have the password for.', 'security', 'unlock', 'simple'),
   T('protect', 'Protect PDF', 'Encrypt with AES-256 and choose what readers may print, copy or change.', 'security', 'lock', 'simple'),
+  T('remove-pages', 'Remove pages', 'Delete pages from a PDF: click the pages to remove, or type page numbers.', 'organize', 'trash', 'pagetools'),
+  T('extract-pages', 'Extract pages', 'Take pages out of a PDF into a new file, or save each page as its own PDF.', 'organize', 'split', 'pagetools'),
   T('organize', 'Organize PDF', 'Reorder, rotate, delete, duplicate pages, add blank pages or pages from other PDFs.', 'organize', 'organize', 'pages'),
-  T('pdf-to-pdfa', 'PDF to PDF/A', 'Archive-grade PDF/A conversion with validation.', 'convert', 'archive', 'extra', { server: true }),
+  T('pdf-to-pdfa', 'PDF to PDF/A', 'Convert to PDF/A-2b for long-term archiving, with an optional searchable text layer.', 'convert', 'archive', 'pdfa'),
   T('repair', 'Repair PDF', 'Rebuild a damaged PDF and recover as many pages as possible.', 'optimize', 'repair', 'simple'),
   T('page-numbers', 'Page numbers', 'Add page numbers with position, format, start number and font settings.', 'edit', 'numbers', 'simple'),
   T('scan', 'Scan to PDF', 'Use your camera to capture documents, clean them up and save as PDF.', 'convert', 'scan', 'pages'),
@@ -69,8 +74,8 @@ export const TOOLS = [
   T('redact', 'Redact PDF', 'Black out text and areas, or search and redact. Redacted content is truly removed.', 'security', 'redact', 'editor'),
   T('crop', 'Crop PDF', 'Draw a crop box and apply it to one page or the whole document.', 'edit', 'crop', 'pages'),
   T('forms', 'PDF Forms', 'Fill existing forms, auto-detect blank lines, or add text fields and checkboxes.', 'edit', 'form', 'extra'),
-  T('summarize', 'Summarizer', 'Get a concise on-device summary and key points from a PDF.', 'intel', 'ai', 'smart'),
-  T('translate', 'Translate PDF', 'Translate PDF text while keeping the layout.', 'intel', 'translate', 'extra', { server: true }),
+  T('summarize', 'AI Summarizer', 'Get key points and a short summary of any PDF, written by the on-device AI built into Chrome and Edge.', 'intel', 'ai', 'smart'),
+  T('translate', 'Translate PDF', 'Translate a PDF into 30+ languages (Hindi, Telugu, Tamil, Spanish, Arabic, Chinese…) keeping its layout, on your device.', 'intel', 'translate', 'translate'),
   T('pdf-to-md', 'PDF to Markdown', 'Turn PDFs into Markdown with headings, lists and links preserved.', 'convert', 'markdown', 'convert'),
   T('pdf-to-text', 'PDF to Text', 'Extract all text from a PDF into a plain .txt file.', 'convert', 'text', 'convert', { tag: 'Extra' }),
   T('font-finder', 'Font Finder', 'Identify the font in any picture: upload a logo, poster or screenshot and get the closest Google fonts, free to use.', 'design', 'text', 'fonts', { tag: 'New' }),

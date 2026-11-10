@@ -209,7 +209,7 @@ export const tools = {
 
   summarize: {
     accept: PDF, multiple: false, label: 'Select a PDF', runLabel: 'Summarise',
-    notice: 'The summary is made on your device by picking the most important sentences. Scanned PDFs need OCR first.',
+    notice: 'Made on your device: Chrome and Edge use their built-in AI to write the summary in their own words; other browsers pick the most important sentences. Scanned PDFs need OCR first.',
     options: [
       { key: 'len', label: 'Summary length', type: 'seg', default: 'medium', options: [['short', 'Short'], ['medium', 'Medium'], ['long', 'Detailed']] },
       { key: 'fmt', label: 'Download as', type: 'seg', default: 'md', options: [['md', 'Markdown'], ['txt', 'Text']] }
@@ -227,12 +227,46 @@ export const tools = {
       if (text.replace(/\s/g, '').length < 200) throw new Error('This PDF has almost no text to summarise. If it is a scan, run OCR PDF on it first.');
       const s = summarise(text, { short: 5, medium: 10, long: 18 }[o.len]);
       const words = text.split(/\s+/).filter(Boolean).length;
-      const md = `# Summary of ${stem(f.name)}\n\n${pages} pages · ${words.toLocaleString()} words · about ${Math.max(1, Math.round(words / 230))} min read\n\n## Key points\n\n${s.points.map((p) => '- ' + p).join('\n')}\n\n## Summary\n\n${s.summary.join(' ')}\n\n## Main topics\n\n${s.keywords.join(', ')}\n`;
+      const head = `# Summary of ${stem(f.name)}\n\n${pages} pages · ${words.toLocaleString()} words · about ${Math.max(1, Math.round(words / 230))} min read\n\n`;
+      let md = null;
+      try { md = await aiSummary(text, o.len, (m) => ctx.progress(0.85, m)); } catch (e) { console.warn('built-in AI summary unavailable', e); }
+      md = md
+        ? head + md + `\n\n## Main topics\n\n${s.keywords.join(', ')}\n\n_Summarised with your browser's built-in on-device AI._\n`
+        : head + `## Key points\n\n${s.points.map((p) => '- ' + p).join('\n')}\n\n## Summary\n\n${s.summary.join(' ')}\n\n## Main topics\n\n${s.keywords.join(', ')}\n\n_Your browser has no built-in AI, so these are the most important sentences of the document._\n`;
       const body = o.fmt === 'txt' ? md.replace(/^#+ /gm, '').replace(/^- /gm, '• ') : md;
       return [{ name: `${stem(f.name)}-summary.${o.fmt}`, blob: new Blob([body], { type: o.fmt === 'md' ? 'text/markdown' : 'text/plain' }), preview: md.replace(/^#+ /gm, '').replace(/^- /gm, '• ') }];
     }
   }
 };
+
+// A summary from the browser's built-in on-device model (Chrome / Edge Summarizer API), or null if there is none.
+// Long documents are summarised in parts first, then those summaries are summarised together.
+async function aiSummary(text, len, onStatus) {
+  if (typeof self === 'undefined' || !('Summarizer' in self)) return null;
+  const length = { short: 'short', medium: 'medium', long: 'long' }[len];
+  const opts = { format: 'markdown', length, outputLanguage: 'en' };
+  // Some browsers expose the API but never answer: give each step a deadline, then fall back.
+  const within = (p, ms) => Promise.race([p, new Promise((_, rej) => setTimeout(() => rej(new Error('timed out')), ms))]);
+  const av = await within(self.Summarizer.availability({ ...opts, type: 'key-points' }), 6000);
+  if (av === 'unavailable') return null;
+  const make = (type) => within(self.Summarizer.create({ ...opts, type, monitor(m) { m.addEventListener('downloadprogress', (e) => onStatus(`Downloading the browser's AI model ${Math.round((e.loaded || 0) * 100)}% (once)…`)); } }), av === 'available' ? 20000 : 300000);
+  const kp = await make('key-points'), tldr = await make('tldr');
+  const quota = Math.min(kp.inputQuota || 4000, 12000);
+  const clean = text.replace(/\s+/g, ' ').trim();
+  let source = clean;
+  if (clean.length > quota) {
+    const parts = [];
+    for (let i = 0; i < clean.length && parts.length < 12; i += quota) parts.push(clean.slice(i, i + quota));
+    const sums = [];
+    for (const [k, p] of parts.entries()) { onStatus(`Reading part ${k + 1} of ${parts.length} with on-device AI…`); sums.push(await within(tldr.summarize(p), 120000)); }
+    source = sums.join('\n');
+  }
+  onStatus('Writing the summary with on-device AI…');
+  const points = await within(kp.summarize(source.slice(0, quota)), 120000);
+  const overview = await within(tldr.summarize(source.slice(0, quota)), 120000);
+  kp.destroy?.(); tldr.destroy?.();
+  return `## Key points\n\n${points.trim()}\n\n## Summary\n\n${overview.trim()}`;
+}
 
 // A picture file (or the first page of a PDF) as a canvas on white.
 async function fileToCanvas(f) {
