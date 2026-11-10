@@ -28,7 +28,8 @@ jobs:
 
       # No package here needs its install script; skipping them avoids compiling the optional native
       # "canvas" package (only used by pdf.js under Node, never by this site).
-      - run: npm ci --ignore-scripts
+      # (npm install, not npm ci: the lock file is written on Windows and Linux needs its own optional packages.)
+      - run: npm install --ignore-scripts --no-audit --no-fund
 
       # The Craft apps' official web builds (about 400 MB) are downloaded, not stored in Git.
       # They only change when the pinned versions in the script change, so keep them between runs.
