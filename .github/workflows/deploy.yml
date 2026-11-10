@@ -1,9 +1,12 @@
 # Build the site and upload it to the GoDaddy hosting (editsupreme.com) on every push to main.
 # Needs three repository secrets (GitHub → Settings → Secrets and variables → Actions):
-#   FTP_SERVER    e.g. ftp.editsupreme.com
-#   FTP_USERNAME  the cPanel FTP account
+#   FTP_SERVER    the hosting server's own name (cPanel → General Information → "Server Name"/hostname),
+#                 so its TLS certificate matches; ftp.editsupreme.com only works if it has its own certificate
+#   FTP_USERNAME  a cPanel FTP account whose Directory is public_html (e.g. deploy@editsupreme.com)
 #   FTP_PASSWORD  its password
-# Optional variable FTP_DIR (default public_html/) if the FTP account doesn't start one level above it.
+# If you use an account that starts in the home folder instead (like the main cPanel login), add a
+# repository variable FTP_DIR with the value public_html/
+
 name: Deploy to editsupreme.com
 
 on:
@@ -60,5 +63,5 @@ jobs:
           password: ${{ secrets.FTP_PASSWORD }}
           protocol: ftps
           local-dir: ./dist/
-          server-dir: ${{ vars.FTP_DIR || 'public_html/' }}
+          server-dir: ${{ vars.FTP_DIR || './' }}
           timeout: 600000
