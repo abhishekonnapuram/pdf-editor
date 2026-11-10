@@ -15,6 +15,16 @@ const applyOpts = [
 ];
 
 const fontOpt = { key: 'font', label: 'Font', type: 'select', default: 'Helvetica', options: [['Helvetica', 'Sans (Helvetica)'], ['HelveticaBold', 'Sans bold'], ['TimesRoman', 'Serif (Times)'], ['TimesRomanBold', 'Serif bold'], ['Courier', 'Mono (Courier)']] };
+const gfontOpt = { key: 'gfont', label: 'Or any Google font', type: 'gfont', default: '', standardLabel: 'No, use the font above', hint: 'The font is embedded in the PDF (only the characters used).' };
+// A Google font when one is chosen (bold if the built-in choice was bold), otherwise the built-in font.
+async function pickFont(doc, o) {
+  if (o.gfont) {
+    const { embedGoogleFont } = await import('../lib/fonts.js');
+    const f = await embedGoogleFont(doc, o.gfont, { bold: /Bold/.test(o.font || '') });
+    if (f) return f;
+  }
+  return doc.embedFont(StandardFonts[o.font] || StandardFonts.Helvetica);
+}
 
 export async function mergeFiles(files, ctx) {
   const out = await PDFDocument.create();
@@ -57,7 +67,7 @@ export const ops = {
       img = await embedImage(doc, await imageFileToEmbeddable(o.image));
     } else {
       if (!o.text) throw new Error('Type the watermark text.');
-      font = await doc.embedFont(StandardFonts[o.font] || StandardFonts.Helvetica);
+      font = await pickFont(doc, o);
     }
     const ang = (+o.rotation || 0) * Math.PI / 180;
     for (const p of pages) {
@@ -89,7 +99,7 @@ export const ops = {
 
   async pageNumbers(doc, o) {
     const total = doc.getPageCount();
-    const font = await doc.embedFont(StandardFonts[o.font] || StandardFonts.Helvetica);
+    const font = await pickFont(doc, o);
     const [r, g, b] = hexToRgb01(o.color || '#333333');
     const idx = new Set(selectPages(o.apply, o.range, total));
     const counted = [...Array(total).keys()].filter((i) => !(o.skipFirst && i === 0));
@@ -250,6 +260,7 @@ export const tools = {
       { key: 'kind', label: 'Watermark type', type: 'seg', default: 'text', options: [['text', 'Text'], ['image', 'Image']] },
       { key: 'text', label: 'Text', default: 'CONFIDENTIAL', showIf: (v) => v.kind === 'text' },
       { ...fontOpt, showIf: (v) => v.kind === 'text' },
+      { ...gfontOpt, showIf: (v) => v.kind === 'text' },
       { key: 'size', label: 'Font size', type: 'range', min: 8, max: 160, default: 56, unit: 'pt', showIf: (v) => v.kind === 'text' },
       { key: 'color', label: 'Colour', type: 'color', default: '#c2412d', showIf: (v) => v.kind === 'text' },
       { key: 'image', label: 'Image', type: 'file', accept: IMG, showIf: (v) => v.kind === 'image' },
@@ -271,7 +282,7 @@ export const tools = {
       { key: 'format', label: 'Format', type: 'select', default: '{n}', options: [['{n}', '1'], ['Page {n}', 'Page 1'], ['Page {n} of {total}', 'Page 1 of 10'], ['{n} / {total}', '1 / 10'], ['- {n} -', '- 1 -']] },
       { key: 'start', label: 'First number', type: 'number', default: 1, min: 0 },
       { key: 'skipFirst', label: 'Skip the first page (cover)', type: 'checkbox', default: false },
-      fontOpt,
+      fontOpt, gfontOpt,
       { key: 'size', label: 'Font size', type: 'range', min: 6, max: 36, default: 11, unit: 'pt' },
       { key: 'color', label: 'Colour', type: 'color', default: '#333333' },
       { key: 'margin', label: 'Distance from edge', type: 'range', min: 10, max: 80, default: 28, unit: 'pt' },

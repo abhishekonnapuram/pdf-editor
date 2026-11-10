@@ -15,6 +15,10 @@ npm run dev
 Then open http://localhost:5173. To test the production build (including offline mode and the install button):
 
 ```bash
+npm run fetch-crafts
+```
+
+```bash
 npm run build
 ```
 
@@ -39,6 +43,21 @@ npm run preview
 - **Edit existing text**: click any line in the PDF to change its wording, font, size or colour (font, colour and letter spacing are matched automatically). On save the original glyphs are removed from the page's content, so the old words can't be found by search or copy; the rest of the line stays exactly in place.
 - **Edit the words inside images and scans**: the "Edit text inside images & scans" tool reads the text in a picture or scanned page (OCR, 12 languages), you click a line and retype it. The old letters are erased with content-aware fill (the background is rebuilt), and the new text matches the original size, colour, weight and width. It can be saved as sharp, searchable PDF text or merged into the image.
 - **Erase area / add text inside an image**: remove objects or marks from a picture, or write new text into it.
+- **All Google Fonts everywhere**: the full Google Fonts catalogue (1,800+ families, via Fontsource) in a searchable picker with live previews, in Design Studio, Edit PDF (text and text inside images), Watermark and Page numbers. Fonts are embedded in the PDFs (subset to the characters used).
+- **Font Finder**: identify the font in any picture (logo, poster, screenshot): click a line or drag a box, and get the closest Google fonts with a match score, a link and CSS. The same matching gives Image to layers, Screenshot to template, Image to editable and Recreate in HD the closest Google font for each text style.
+- **Creative apps** (Photo Studio = PhotoCraft, plus VectorCraft, LightCraft, FilmCraft, EffectCraft, SoundCraft and PdfCraft): the open-source Craft apps by Storyteller (MIT / Apache-2.0), hosted from their official web builds, unmodified, in `public/<app>/` and shown inside the site. They are too big for Git: run `npm run fetch-crafts` before `npm run build` (versions are pinned in `scripts/fetch-crafts.mjs`; raise a version there and run it again to update). Each folder keeps its LICENSE, NOTICE and .htaccess. The offline service worker never answers these folders with the EditSupreme page.
+- **Screenshot to template**: a screenshot or snapshot of any design is rebuilt at 2–4× resolution as editable layers (text redrawn sharp in the matched Google fonts, shapes as vectors, photos and graphics enlarged with AI) and opens in Design Studio.
+- **Design Studio** (for digital marketers): a design editor for social posts, stories, ads, YouTube thumbnails and banners, LinkedIn/Facebook covers, posters, flyers, business cards and slides.
+  - 21 ready sizes plus custom sizes, and 8 starter templates (sale post, quote, event poster, YouTube thumbnail, story, hiring post, webinar banner, business card).
+  - 20 Google Fonts; text presets and styles (outline, shadow, script, headline); line spacing; rotation; align to page; to front/back; lock; layers panel.
+  - Elements: shapes (square, rounded, circle, outline, triangle, diamond, hexagon, star, heart, blob, line, arrow), 28 recolourable icons, QR codes.
+  - Photos: upload, free stock photos (Wikimedia Commons and Openverse with no key; Pexels, Pixabay and Unsplash with your own free API key, kept on the device), photo frames (clipping masks), filters, crop, replace. Backgrounds: colours, gradients or a picture.
+  - Icon library: 200,000+ free icons from open-source sets (Material, Tabler, Lucide, Phosphor, Font Awesome, emoji and more, via Iconify), recolourable.
+  - Grouping: Shift+click or drag a box to select several items, Ctrl+G to group, Ctrl+Shift+G to ungroup; groups nest; click selects a group, double-click (or Ctrl+click) selects the item inside to edit it on its own. The Layers panel is a tree: drag rows up and down to reorder, or onto a group to put them inside.
+  - Brand kit: brand colours, heading/body fonts and logo, kept on the device.
+  - Magic resize to any other size; download PNG/JPG (1×–3×), print PDF or PDF with editable text; save/open project files; the latest design is autosaved on the device.
+- **Image to layers**: split a flat design, poster, social post or screenshot into separate layers, like a design tool's "magic layers": background colour, solid shapes (panels, bars, lines, circles), photos (round ones keep their shape), graphics/icons (transparent cut-outs) and editable text (big headings included, bold per word). Move, edit, hide, lock, reorder or delete any layer, add new ones, then export a PNG at the original size and a PDF with real text.
+- **Recreate in HD**: rebuild a picture at 2×, 3× or 4×. Text, the background and solid shapes are redrawn perfectly sharp at the new size; photos and graphics are enlarged with an on-device AI model (ESRGAN via TensorFlow.js, about 1 MB, served from `public/models`). "AI only" mode enlarges everything with the model, for photos.
 - **Image to editable**: turn a resume or document picture (JPG/PNG) or an image-only PDF into an editable PDF and a Word file that look the same. Every line is read, erased from the picture and put back as real text at the same place, size, colour and weight (bold is detected per word); photos, lines and shapes stay untouched in the background. In Word each line is its own positioned text box. Marks the reader missed (a dot, an icon) stay in the picture rather than disappearing, and text found inside photos is ignored.
 - **Find pictures inside an image**: on a page that is one big picture (e.g. a resume exported as an image), "Find pictures" detects the photos (round or rectangular) so they can be selected, replaced, moved or deleted; the background behind them is rebuilt.
 - **Clipping masks (picture frames)**: show any image inside a shape (square, rounded, circle/oval, triangle, diamond, hexagon, star, heart, blob) with zoom, position and an optional border, or turn a drawn rectangle/ellipse into a frame with "Fill with picture". Saved as a real PDF clipping path, so the picture keeps full quality.

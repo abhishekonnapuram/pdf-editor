@@ -27,6 +27,9 @@ if ('launchQueue' in window) {
 function header() {
   const nav = h('nav', { class: 'topnav' },
     ['merge', 'split', 'compress', 'edit', 'sign', 'ocr'].map((id) => h('a', { href: '#/tool/' + id }, toolById(id).name.replace(' PDF', ''))),
+    h('a', { href: '#/tool/design-studio', class: 'navhot' }, 'Design Studio'),
+    h('a', { href: '#/tool/photo-studio', class: 'navhot' }, 'Photo Studio'),
+    h('a', { href: '#/tool/creative-apps', class: 'navhot' }, 'Creative apps'),
     h('a', { href: '#/' }, 'All tools'));
   return h('header', { class: 'topbar' },
     h('a', { class: 'brand', href: '#/', 'aria-label': 'EditSupreme home' }, h('img', { src: './logo.png', alt: 'EditSupreme', width: 116, height: 44 })),
@@ -106,7 +109,7 @@ async function toolPage(id) {
   try { impl = await loadTool(meta); } catch (e) { body.replaceChildren(h('p', { class: 'error' }, 'Could not load this tool. ' + e.message)); return main; }
 
   const ctxBase = { meta, toast };
-  const NON_PDF_INPUT = ['word-to-pdf', 'ppt-to-pdf', 'excel-to-pdf', 'html-to-pdf', 'jpg-to-pdf', 'scan', 'workflow'];
+  const NON_PDF_INPUT = ['creative-apps', 'vectorcraft', 'lightcraft', 'filmcraft', 'effectcraft', 'soundcraft', 'pdfcraft', 'photo-studio', 'font-finder', 'design-studio', 'image-hd', 'word-to-pdf', 'ppt-to-pdf', 'excel-to-pdf', 'html-to-pdf', 'jpg-to-pdf', 'scan', 'workflow'];
   const tools = TOOLS.filter((t) => !t.server && t.id !== id && !NON_PDF_INPUT.includes(t.id));
   const finish = (outputs, note) => {
     body.replaceChildren(resultView(outputs, {

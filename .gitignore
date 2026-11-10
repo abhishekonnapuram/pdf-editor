@@ -1,3 +1,13 @@
 node_modules/
 dist/
 .testdata/
+
+# Craft apps' web builds (downloaded by npm run fetch-crafts; too big for Git)
+public/photocraft/
+public/vectorcraft/
+public/lightcraft/
+public/filmcraft/
+public/effectcraft/
+public/soundcraft/
+public/pdfcraft/
+public/.*-tmp/

@@ -4,6 +4,7 @@
 import { PDFDocument, StandardFonts, rgb, pushGraphicsState, popGraphicsState, setCharacterSpacing } from '@cantoo/pdf-lib';
 import { findText, findPictures, eraseRegion } from './imagetext.js';
 import { canvasToBlob, blobToBytes, hexToRgb01 } from './core.js';
+import { matchFont, embedGoogleFont, fontStack, loadFont } from './fonts.js';
 
 const STD = {
   sans: [StandardFonts.Helvetica, StandardFonts.HelveticaBold, StandardFonts.HelveticaOblique, StandardFonts.HelveticaBoldOblique],
@@ -18,14 +19,17 @@ const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
  * built-in fonts can't show, are left in the picture untouched so the page still looks right.
  * Returns {bg: canvas without the converted text, lines, kept: number of lines left as pixels}.
  */
-export async function rebuildPage(canvas, { langs = 'eng', minConf = 55, fontOverride = '', onStatus } = {}) {
+export async function rebuildPage(canvas, { langs = 'eng', minConf = 55, fontOverride = '', onStatus, ocrCanvas } = {}) {
   // Text "found" inside photos is noise; keep photos exactly as they are.
-  const pics = findPictures(canvas);
+  const found = await findText(canvas.toDataURL('image/png'), langs, onStatus, { ocr: ocrCanvas });
+  // Clearly-read text is not part of a photo (bold headings can look "busy"); anything else found
+  // inside a photo is noise from the picture itself.
+  const pics = findPictures(canvas, found.filter((l) => l.conf >= 85).map((l) => l.bbox));
   const inPicture = (b) => pics.some((p) => {
     const ix = Math.max(0, Math.min(b.x1, p.x1) - Math.max(b.x0, p.x0)), iy = Math.max(0, Math.min(b.y1, p.y1) - Math.max(b.y0, p.y0));
     return ix * iy > (b.x1 - b.x0) * (b.y1 - b.y0) * 0.4;
   });
-  const lines = (await findText(canvas.toDataURL('image/png'), langs, onStatus)).filter((l) => !inPicture(l.bbox));
+  const lines = found.filter((l) => !inPicture(l.bbox));
   const probe = await PDFDocument.create();
   const probeFonts = {};
   const pf = async (family, bold, italic) => { const key = STD[family][(bold ? 1 : 0) + (italic ? 2 : 0)]; return (probeFonts[key] ||= await probe.embedFont(key)); };
@@ -57,7 +61,7 @@ function textMask(W, H, lines) {
   g.lineJoin = 'round';
   for (const l of lines) {
     for (const sg of l.segs) {
-      g.font = `${l.italic ? 'italic ' : ''}${sg.bold ? '700 ' : ''}${l.size}px ${CSS[l.font || 'sans']}`;
+      g.font = `${l.italic ? 'italic ' : ''}${sg.bold ? '700 ' : ''}${l.size}px ${l.family ? fontStack(l.family) : CSS[l.font || 'sans']}`;
       const n = [...sg.text].length;
       g.letterSpacing = '0px';
       const ls = n > 1 ? clamp((sg.x1 - sg.x0 - g.measureText(sg.text).width) / (n - 1), -0.08 * l.size, 0.8 * l.size) : 0;
@@ -100,11 +104,51 @@ async function segments(l, pf) {
   return out;
 }
 
+/**
+ * Find the closest Google font for each text style in a picture. Lines with the same weight, similar size and
+ * colour are matched together (from up to three samples), so a design keeps one font per style.
+ * Sets line.family. canvas: the original picture.
+ */
+export async function matchLineFonts(canvas, lines, onStatus) {
+  const groups = new Map();
+  for (const l of lines) {
+    if (l.text.replace(/[^\p{L}]/gu, '').length < 2) continue;
+    const k = `${l.bold ? 1 : 0}|${Math.round(Math.log(l.size) / Math.log(1.18))}|${l.color}|${l.italic ? 1 : 0}`;
+    if (!groups.has(k)) groups.set(k, []);
+    groups.get(k).push(l);
+  }
+  let n = 0;
+  for (const g of groups.values()) {
+    onStatus?.(`matching fonts (${++n} of ${groups.size} text styles)`);
+    const samples = g.slice().sort((a, b) => b.text.length - a.text.length).slice(0, 3).map((l) => ({ canvas, box: l.bbox, text: l.text }));
+    const [best] = await matchFont(samples, { italic: g[0].italic || 'auto', top: 1 });
+    if (best && best.score > 0.35) for (const l of g) {
+      l.family = best.family;
+      // The comparison is also the best judge of slant; weight comes from the stroke measurements.
+      l.italic = best.italic;
+      await loadFont(best.family, { bold: l.bold, italic: l.italic });
+    }
+  }
+  // Lines too short to match on their own borrow the font of the nearest-sized matched line.
+  const matched = lines.filter((l) => l.family);
+  for (const l of lines) if (!l.family && matched.length) l.family = matched.reduce((a, b) => (Math.abs(b.size - l.size) < Math.abs(a.size - l.size) ? b : a)).family;
+  // Weight runs were sized for the built-in fonts; re-fit them to the matched ones.
+  return lines;
+}
+
 /** pages: [{bg, lines, width, height}] where width/height are the page size in points. */
 export async function buildEditablePdf(pages, title = '') {
   const doc = await PDFDocument.create();
   const fonts = {};
-  const font = async (l) => { const key = STD[l.font || 'sans'][(l.bold ? 1 : 0) + (l.italic ? 2 : 0)]; return (fonts[key] ||= await doc.embedFont(key)); };
+  const font = async (l) => {
+    if (l.family) {
+      const gk = `g:${l.family}|${l.bold ? 1 : 0}|${l.italic ? 1 : 0}`;
+      if (!(gk in fonts)) fonts[gk] = await embedGoogleFont(doc, l.family, l);
+      if (fonts[gk]) return fonts[gk];
+    }
+    const key = STD[l.font || 'sans'][(l.bold ? 1 : 0) + (l.italic ? 2 : 0)];
+    return (fonts[key] ||= await doc.embedFont(key));
+  };
   for (const pg of pages) {
     const page = doc.addPage([pg.width, pg.height]);
     const k = pg.width / pg.bg.width;
@@ -163,9 +207,9 @@ export async function buildEditableDocx(pages) {
         const ls = n > 1 ? clamp((w - natural) / (n - 1), -0.08 * size, 0.8 * size) : 0;
         if (j) {
           const gap = sg.x0 * k - x, sp = measure({ ...l, bold: false, text: ' ' }, size);
-          runs.push(new TextRun({ text: ' ', font: WORD_FONT[l.font || 'sans'], size: Math.round(size * 2), characterSpacing: tw(clamp(gap - sp, -sp * 0.5, size * 4)) }));
+          runs.push(new TextRun({ text: ' ', font: l.family || WORD_FONT[l.font || 'sans'], size: Math.round(size * 2), characterSpacing: tw(clamp(gap - sp, -sp * 0.5, size * 4)) }));
         }
-        runs.push(new TextRun({ text: sg.text, font: WORD_FONT[l.font || 'sans'], size: Math.max(2, Math.round(size * 2)), bold: sg.bold, italics: l.italic, color: l.color.replace('#', ''), characterSpacing: tw(ls) }));
+        runs.push(new TextRun({ text: sg.text, font: l.family || WORD_FONT[l.font || 'sans'], size: Math.max(2, Math.round(size * 2)), bold: sg.bold, italics: l.italic, color: l.color.replace('#', ''), characterSpacing: tw(ls) }));
         x = sg.x1 * k;
       }
       const w = (l.bbox.x1 - l.bbox.x0) * k;
@@ -184,9 +228,29 @@ export async function buildEditableDocx(pages) {
   return Packer.toBlob(new Document({ creator: 'EditSupreme', sections }));
 }
 
+/**
+ * Draw a rebuilt line onto a canvas at `s` times its original size, each weight run at its own
+ * position and stretched to its original width. Used to recreate text sharply at a higher resolution.
+ */
+export function drawLine(g, l, s = 1) {
+  g.save();
+  g.fillStyle = l.color;
+  g.textBaseline = 'alphabetic';
+  const size = l.size * s;
+  for (const sg of l.segs || [{ text: l.text, x0: l.bbox.x0, x1: l.bbox.x1, bold: l.bold }]) {
+    g.font = `${l.italic ? 'italic ' : ''}${sg.bold ? '700 ' : ''}${size}px ${l.family ? fontStack(l.family) : CSS[l.font || 'sans']}`;
+    g.letterSpacing = '0px';
+    const n = [...sg.text].length;
+    const ls = n > 1 ? clamp(((sg.x1 - sg.x0) * s - g.measureText(sg.text).width) / (n - 1), -0.08 * size, 0.8 * size) : 0;
+    g.letterSpacing = ls + 'px';
+    g.fillText(sg.text, sg.x0 * s, l.baseline * s);
+  }
+  g.restore();
+}
+
 const mctx = document.createElement('canvas').getContext('2d');
 const CSS = { sans: 'Arial, Helvetica, sans-serif', serif: '"Times New Roman", Times, serif', mono: '"Courier New", Courier, monospace' };
 function measure(l, size) {
-  mctx.font = `${l.italic ? 'italic ' : ''}${l.bold ? '700 ' : ''}${size}px ${CSS[l.font || 'sans']}`;
+  mctx.font = `${l.italic ? 'italic ' : ''}${l.bold ? '700 ' : ''}${size}px ${l.family ? fontStack(l.family) : CSS[l.font || 'sans']}`;
   return mctx.measureText(l.text).width;
 }

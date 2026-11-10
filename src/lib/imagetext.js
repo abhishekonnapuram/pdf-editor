@@ -1,6 +1,7 @@
 // Editing the content of raster images: find text with OCR, erase it (content-aware fill),
 // and draw replacement text that matches the original size, colour, weight and width.
 import { loadImage } from './core.js';
+import { fontStack } from './fonts.js';
 
 export const FONT_CSS = {
   sans: 'Helvetica, Arial, "Liberation Sans", sans-serif',
@@ -35,32 +36,52 @@ export function textWidth(t) {
   const lines = t.text.split('\n');
   return Math.max(...lines.map((l) => measure.measureText(l).width + (t.ls || 0) * Math.max(0, [...l].length - 1)));
 }
-export const fontString = (t, size) => `${t.italic ? 'italic ' : ''}${t.bold ? '700 ' : ''}${size}px ${FONT_CSS[t.font || 'sans']}`;
+export const fontString = (t, size) => `${t.italic ? 'italic ' : ''}${t.bold ? '700 ' : ''}${size}px ${t.family ? fontStack(t.family) : FONT_CSS[t.font || 'sans']}`;
 
 /**
  * OCR an image. Returns lines in image pixels with the style of each line already estimated:
  * [{text, bbox:{x0,y0,x1,y1}, baseline, size, color, bold, italic, font, ls, conf}]
  */
-export async function findText(src, langs = 'eng', onStatus) {
+export async function findText(src, langs = 'eng', onStatus, opts = {}) {
   const c = await srcToCanvas(src);
+  // opts.ocr: a same-size canvas to read the words from (e.g. a high-contrast copy); styles still come from src.
+  const ocrSrc = opts.ocr || c;
   // Small images OCR much better when enlarged.
   let up = Math.max(1, Math.min(3, 1800 / Math.max(c.width, c.height)));
   if (up < 1.05) up = 1;
-  let input = c;
+  let input = ocrSrc;
   if (up > 1) {
     input = document.createElement('canvas');
     input.width = Math.round(c.width * up); input.height = Math.round(c.height * up);
     const g = input.getContext('2d');
     g.imageSmoothingQuality = 'high';
-    g.drawImage(c, 0, 0, input.width, input.height);
+    g.drawImage(ocrSrc, 0, 0, input.width, input.height);
   }
   const w = await worker(langs, onStatus);
   onStatus?.('reading text');
+  const full = c.getContext('2d', { willReadFrequently: true }).getImageData(0, 0, c.width, c.height).data;
+  const out = await readLines(w, input, (v) => v / up, full, c.width, c.height);
+  // Very large text (posters, headings, banners) is often skipped as "picture"; read a reduced copy too,
+  // where it is normal-sized, and add any lines that weren't found in the first pass.
+  // (Small pictures were enlarged for the first pass, so their headings got even bigger: scale from that.)
+  const f = 0.4 * up;
+  if (Math.max(c.width, c.height) * f >= 280) {
+    const small = document.createElement('canvas');
+    small.width = Math.round(c.width * f); small.height = Math.round(c.height * f);
+    const g = small.getContext('2d');
+    g.imageSmoothingQuality = 'high';
+    g.drawImage(ocrSrc, 0, 0, small.width, small.height);
+    const big = await readLines(w, small, (v) => v / f, full, c.width, c.height);
+    const overlaps = (a, b) => Math.min(a.x1, b.x1) - Math.max(a.x0, b.x0) > 0 && Math.min(a.y1, b.y1) - Math.max(a.y0, b.y0) > 0;
+    for (const l of big) if (l.size * up >= 40 && !out.some((o) => overlaps(o.bbox, l.bbox))) out.push(l);
+  }
+  return out;
+}
+
+async function readLines(w, input, s, full, W, H) {
   const { data } = await w.recognize(input, {}, { blocks: true, text: true });
   const lines = (data.blocks || []).flatMap((b) => b.paragraphs.flatMap((p) => p.lines));
-  const full = c.getContext('2d', { willReadFrequently: true }).getImageData(0, 0, c.width, c.height).data;
   const out = [];
-  const s = (v) => v / up;
   for (const ln of lines) {
     // Keep only real words: shapes and noise often come back as low-confidence symbols.
     let words = (ln.words || []).filter((wd) => wd.text?.trim() && (/[\p{L}\p{N}]/u.test(wd.text) ? wd.confidence >= 15 : wd.confidence >= 70));
@@ -80,7 +101,7 @@ export async function findText(src, langs = 'eng', onStatus) {
       const conf = cl.reduce((a, wd) => a + wd.confidence, 0) / cl.length;
       const letters = cl.map((wd) => wd.text).join('').replace(/[^\p{L}\p{N}]/gu, '').length;
       if (conf < 45 || (letters <= 3 && conf < 75 && clusters.length > 1)) continue;
-      const line = buildLine(cl, ln, s, full, c.width, c.height);
+      const line = buildLine(cl, ln, s, full, W, H);
       if (line) { line.conf = conf; out.push(line); }
     }
   }
@@ -477,6 +498,52 @@ export function eraseRegion(canvas, boxes, mode = 'ink', allow = null) {
         if (nx < 0 || ny < 0 || nx >= W || ny >= H) continue;
         const k = ny * W + nx;
         if (mask[k] && !queued[k]) { queued[k] = 1; next.push(k); }
+      }
+    }
+    front = next;
+  }
+  g.putImageData(img, 0, 0);
+}
+
+/**
+ * Content-aware fill of any shape: `mask` is a W×H Uint8Array (1 = rebuild this pixel). The hole is filled
+ * from its edges inwards, so the surrounding colours and gradients carry on smoothly (spot healing, remove).
+ */
+export function inpaintMask(canvas, mask) {
+  const W = canvas.width, H = canvas.height;
+  const g = canvas.getContext('2d', { willReadFrequently: true });
+  const img = g.getImageData(0, 0, W, H);
+  const d = img.data;
+  const m = mask.slice();
+  const known = (x, y) => x >= 0 && y >= 0 && x < W && y < H && !m[y * W + x];
+  let front = [];
+  const queued = new Uint8Array(W * H);
+  for (let i = 0; i < m.length; i++) {
+    if (!m[i]) continue;
+    const x = i % W, y = (i / W) | 0;
+    if (known(x - 1, y) || known(x + 1, y) || known(x, y - 1) || known(x, y + 1)) { front.push(i); queued[i] = 1; }
+  }
+  while (front.length) {
+    const fills = [];
+    for (const i of front) {
+      const x = i % W, y = (i / W) | 0;
+      let r = 0, gg = 0, b = 0, a = 0, n = 0;
+      for (let dy = -2; dy <= 2; dy++) for (let dx = -2; dx <= 2; dx++) {
+        if ((!dx && !dy) || !known(x + dx, y + dy)) continue;
+        const q = ((y + dy) * W + (x + dx)) * 4, w = 1 / (dx * dx + dy * dy);
+        r += d[q] * w; gg += d[q + 1] * w; b += d[q + 2] * w; a += d[q + 3] * w; n += w;
+      }
+      if (n) fills.push([i, r / n, gg / n, b / n, a / n]);
+    }
+    if (!fills.length) break;
+    const next = [];
+    for (const [i, r, gg, b, a] of fills) { const q = i * 4; d[q] = r; d[q + 1] = gg; d[q + 2] = b; d[q + 3] = a; m[i] = 0; }
+    for (const [i] of fills) {
+      const x = i % W, y = (i / W) | 0;
+      for (const [nx, ny] of [[x - 1, y], [x + 1, y], [x, y - 1], [x, y + 1]]) {
+        if (nx < 0 || ny < 0 || nx >= W || ny >= H) continue;
+        const k = ny * W + nx;
+        if (m[k] && !queued[k]) { queued[k] = 1; next.push(k); }
       }
     }
     front = next;

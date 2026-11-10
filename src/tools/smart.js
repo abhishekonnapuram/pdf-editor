@@ -88,7 +88,7 @@ export const tools = {
       { key: 'lang', label: 'Document language', type: 'select', default: 'eng', options: LANGS },
       { key: 'lang2', label: 'Second language (optional)', type: 'select', default: '', options: [['', 'None'], ...LANGS] },
       { key: 'out', label: 'Create', type: 'seg', default: 'both', options: [['both', 'PDF + Word'], ['pdf', 'Editable PDF'], ['docx', 'Word (.docx)']] },
-      { key: 'font', label: 'Font', type: 'select', default: '', options: [['', 'Match automatically'], ['sans', 'Sans (Arial / Helvetica)'], ['serif', 'Serif (Times)'], ['mono', 'Mono (Courier)']] },
+      { key: 'font', label: 'Font', type: 'select', default: 'match', options: [['match', 'Find the closest Google font (recommended)'], ['', 'Built-in fonts only'], ['sans', 'Sans (Arial / Helvetica)'], ['serif', 'Serif (Times)'], ['mono', 'Mono (Courier)']] },
       { key: 'size', label: 'Page size (pictures)', type: 'seg', default: 'a4', options: [['a4', 'A4 width'], ['letter', 'Letter width']] }
     ],
     async process([f], o, ctx) {
@@ -125,7 +125,9 @@ export const tools = {
       for (const [i, s] of sources.entries()) {
         const at = `Page ${i + 1} of ${sources.length}`;
         ctx.progress(0.05 + (i / sources.length) * 0.85, `${at}: reading text…`);
-        const r = await rebuildPage(s.canvas, { langs, fontOverride: o.font, onStatus: (m) => ctx.progress(0.05 + (i / sources.length) * 0.85, `${at}: ${m}`) });
+        const st = (m) => ctx.progress(0.05 + (i / sources.length) * 0.85, `${at}: ${m}`);
+        const r = await rebuildPage(s.canvas, { langs, fontOverride: o.font === 'match' ? '' : o.font, onStatus: st });
+        if (o.font === 'match') { const { matchLineFonts } = await import('../lib/rebuild.js'); await matchLineFonts(s.canvas, r.lines, st); }
         pages.push({ bg: r.bg, lines: r.lines, width: s.width, height: s.height });
         kept += r.kept; lines += r.lines.length;
       }
@@ -137,6 +139,70 @@ export const tools = {
       return {
         outputs,
         note: `${lines} line${lines > 1 ? 's' : ''} of text are now editable${kept ? ` (${kept} unclear line${kept > 1 ? 's were' : ' was'} left as part of the picture so nothing looks wrong)` : ''}. Open the PDF in Edit PDF ("Edit existing text") to change any line, or open the .docx in Word, where every line is its own text box over the original background.`
+      };
+    }
+  },
+
+  'image-to-layers': {
+    accept: 'image/*,' + PDF, multiple: false, label: 'Select a design, poster, resume or social post (JPG, PNG, WEBP or PDF)',
+    async mount(el, [f], ctx) {
+      const { h } = await import('../lib/ui.js');
+      const msg = h('div', { class: 'status' }, 'Starting…');
+      const bar = h('div', { class: 'progress' }, h('div', { style: { width: '4%' } }));
+      el.replaceChildren(h('div', { class: 'card', style: { padding: '28px', textAlign: 'center' } },
+        h('h3', { style: { margin: '0 0 8px' } }, 'Splitting your picture into layers…'), msg, bar,
+        h('p', { class: 'hint' }, 'Text, photos, shapes and graphics are separated on your device. The text reader downloads the first time.')));
+      const steps = ['enhancing', 'reading text', 'finding photos', 'finding shapes', 'reading text on coloured', 'matching fonts', 'separating graphics'];
+      const onStatus = (m) => { msg.textContent = m[0].toUpperCase() + m.slice(1) + '…'; const i = steps.findIndex((s) => m.startsWith(s)); if (i >= 0) bar.firstChild.style.width = 8 + i * 14 + '%'; };
+      try {
+        const d = await pictureToDesign(f, onStatus, { enhance: ctx.meta?.id === 'screenshot-to-template' ? 'always' : 'auto' });
+        onStatus('opening the Design Studio editor');
+        // A page the size of the picture (1pt per pixel), so downloads come out at the original size.
+        const doc = await PDFDocument.create();
+        doc.addPage([d.W, d.H]);
+        const file = new File([await doc.save()], stem(f.name) + '.pdf', { type: 'application/pdf' });
+        const { mountEditor } = await import('./editor.js');
+        await mountEditor(el, file, ctx, 'design', { initial: [d.objs], name: stem(f.name) });
+      } catch (e) {
+        console.error(e);
+        el.replaceChildren(h('p', { class: 'error' }, 'Could not split this picture: ' + e.message));
+      }
+    }
+  },
+
+  // The same flow, always enhancing first: made for screenshots of other designs and website graphics.
+  get 'screenshot-to-template'() { return this['image-to-layers']; },
+
+  'image-hd': {
+    accept: 'image/*', multiple: false, label: 'Select a picture (JPG, PNG, WEBP)', runLabel: 'Recreate in HD',
+    notice: 'Runs on your device with a small AI model (about 1 MB, downloaded once). Large pictures at 4× can take a minute or two.',
+    options: [
+      { key: 'scale', label: 'Enlarge', type: 'seg', default: '2', options: [['2', '2×'], ['3', '3×'], ['4', '4×']] },
+      { key: 'mode', label: 'Method', type: 'seg', default: 'recreate', options: [['recreate', 'Recreate (sharp text & shapes + AI)'], ['ai', 'AI only (photos)']] },
+      { key: 'lang', label: 'Text language (Recreate)', type: 'select', default: 'eng', options: LANGS, showIf: (o) => o.mode === 'recreate' },
+      { key: 'fmt', label: 'Save as', type: 'seg', default: 'png', options: [['png', 'PNG'], ['jpg', 'JPG']] }
+    ],
+    async process([f], o, ctx) {
+      const canvas = await fileToCanvas(f);
+      let scale = +o.scale;
+      // Keep the result within what browsers can hold (about 64 megapixels, 8000 px a side).
+      const fit = Math.min(scale, 8000 / Math.max(canvas.width, canvas.height), Math.sqrt(64e6 / (canvas.width * canvas.height)));
+      const note = fit < scale ? `This picture is large, so it was enlarged ${fit.toFixed(1)}× instead of ${scale}× (the most a browser can hold). ` : '';
+      scale = Math.max(1, fit);
+      const { recreateHD } = await import('../lib/hd.js');
+      let stage = 'Starting';
+      ctx.progress(0.02, 'Starting…');
+      const { canvas: out } = await recreateHD(canvas, scale, {
+        mode: o.mode, langs: o.lang,
+        onStatus: (m) => { stage = m[0].toUpperCase() + m.slice(1); ctx.progress(0.1, stage + '…'); },
+        onProgress: (p) => ctx.progress(0.15 + p * 0.8, `${stage}… ${Math.round(p * 100)}%`)
+      });
+      ctx.progress(0.97, 'Saving…');
+      const { canvasToBlob } = await import('../lib/core.js');
+      const blob = await canvasToBlob(out, o.fmt === 'jpg' ? 'image/jpeg' : 'image/png', 0.93);
+      return {
+        outputs: [{ name: `${stem(f.name)}-hd-${out.width}x${out.height}.${o.fmt}`, blob }],
+        note: `${note}Recreated at ${out.width} × ${out.height} pixels (was ${canvas.width} × ${canvas.height}).${o.mode === 'recreate' ? ' Text, the background and solid shapes were redrawn perfectly sharp; photos and graphics were enlarged with AI. Check the text, since it was re-typed from what the reader saw.' : ''}`
       };
     }
   },
@@ -167,6 +233,116 @@ export const tools = {
     }
   }
 };
+
+// A picture file (or the first page of a PDF) as a canvas on white.
+async function fileToCanvas(f) {
+  if (/pdf$/i.test(f.type) || /\.pdf$/i.test(f.name)) {
+    const view = await openPdfjs(await readBytes(f));
+    const page = await view.getPage(1);
+    const vp = page.getViewport({ scale: 1 });
+    const c = await renderPage(page, Math.min(200 / 72, 3000 / Math.max(vp.width, vp.height)));
+    view.destroy();
+    return c;
+  }
+  const url = URL.createObjectURL(f);
+  try {
+    const img = await loadImage(url);
+    const c = document.createElement('canvas');
+    c.width = img.naturalWidth; c.height = img.naturalHeight;
+    const g = c.getContext('2d');
+    g.fillStyle = '#fff'; g.fillRect(0, 0, c.width, c.height);
+    g.drawImage(img, 0, 0);
+    return c;
+  } finally { URL.revokeObjectURL(url); }
+}
+
+/** A picture (or the first page of a PDF) split into editable design layers: {W, H, objs}. */
+export async function pictureToDesign(f, onStatus, { enhance = 'auto' } = {}) {
+  const canvas = await fileToCanvas(f);
+  const { analyseLayers } = await import('../lib/layers.js');
+  // Layers are found at the picture's own size (enlarging first would also enlarge JPEG noise).
+  const L = await analyseLayers(canvas, { onStatus });
+  // Screenshots and small pictures are then rebuilt larger: text and shapes are redrawn sharp at the
+  // new size, and only photos and graphics are enlarged with the AI model.
+  const long = Math.max(L.W, L.H);
+  if (enhance === 'always' ? long < 3000 : enhance === 'auto' && long < 1400) {
+    const S = Math.min(long < 900 ? 4 : 2, 6000 / long);
+    await scaleLayers(L, S, onStatus);
+  }
+  const objs = await layersToObjects(L);
+  if (objs[0]) objs[0].isBg = true;
+  return { W: L.W, H: L.H, objs };
+}
+
+// Enlarge a layer analysis S times: geometry and text sizes scale, picture layers go through the AI.
+async function scaleLayers(L, S, onStatus) {
+  const { aiUpscale } = await import('../lib/hd.js');
+  const bgColor = L.bg.color || '#ffffff';
+  const sc = (b) => { b.x0 *= S; b.y0 *= S; b.x1 *= S; b.y1 *= S; };
+  const jobs = [...L.pictures.map((p) => ['p', p]), ...L.graphics.map((g) => ['g', g]), ...(L.bg.canvas ? [['b', L.bg]] : [])];
+  let n = 0;
+  for (const [kind, it] of jobs) {
+    onStatus?.(`enhancing pictures with AI (${++n} of ${jobs.length})`);
+    const src = it.canvas;
+    if (kind === 'g') {
+      // Graphics have see-through edges: enlarge their colours over the background, then re-apply a smooth outline.
+      const flat = document.createElement('canvas');
+      flat.width = src.width; flat.height = src.height;
+      const fg = flat.getContext('2d');
+      fg.fillStyle = bgColor; fg.fillRect(0, 0, flat.width, flat.height); fg.drawImage(src, 0, 0);
+      const big = await aiUpscale(flat, S);
+      const g = big.getContext('2d');
+      g.globalCompositeOperation = 'destination-in';
+      g.imageSmoothingQuality = 'high';
+      g.drawImage(src, 0, 0, big.width, big.height);
+      it.canvas = big;
+    } else it.canvas = await aiUpscale(src, S);
+  }
+  L.W = Math.round(L.W * S); L.H = Math.round(L.H * S);
+  for (const s of L.shapes) sc(s);
+  for (const p of L.pictures) sc(p);
+  for (const g of L.graphics) sc(g);
+  for (const l of L.lines) {
+    sc(l.bbox);
+    l.baseline *= S; l.size *= S; if (l.ls) l.ls *= S;
+    for (const sg of l.segs || []) { sg.x0 *= S; sg.x1 *= S; }
+  }
+}
+
+// How far below the top of a text box its baseline sits, as a fraction of the size (matches the editor's CSS).
+function baseFrom(family, font, bold, italic) {
+  const ASC = { sans: 0.945, serif: 0.9375, mono: 0.866 };
+  if (!family) return ASC[font];
+  const g = document.createElement('canvas').getContext('2d');
+  g.font = `${italic ? 'italic ' : ''}${bold ? 700 : 400} 100px "${family}"`;
+  const m = g.measureText('Hg');
+  const a = (m.fontBoundingBoxAscent ?? 90) / 100, d = (m.fontBoundingBoxDescent ?? 25) / 100;
+  return (1.2 - (a + d)) / 2 + a;
+}
+
+// Layers from analyseLayers -> editor objects, back to front.
+async function layersToObjects(L) {
+  const { textWidth } = await import('../lib/imagetext.js');
+  const ASC = { sans: 0.945, serif: 0.9375, mono: 0.866 };
+  const clampv = (v, a, b) => Math.max(a, Math.min(b, v));
+  const img = (c, png) => ({ src: c.toDataURL(png ? 'image/png' : 'image/jpeg', 0.93), natW: c.width, natH: c.height, jpeg: !png });
+  const objs = [];
+  if (L.bg.color) objs.push({ type: 'rect', layer: 'Background', locked: true, x: 0, y: 0, w: L.W, h: L.H, fill: L.bg.color, stroke: L.bg.color, sw: 0, opacity: 100 });
+  else objs.push({ type: 'image', layer: 'Background', locked: true, x: 0, y: 0, w: L.W, h: L.H, opacity: 100, filters: {}, ...img(L.bg.canvas, false) });
+  for (const s of L.shapes) objs.push({ type: s.kind, layer: s.kind === 'ellipse' ? 'Circle' : (s.y1 - s.y0 <= 6 || s.x1 - s.x0 <= 6) ? 'Line' : 'Shape', x: s.x0, y: s.y0, w: s.x1 - s.x0, h: s.y1 - s.y0, fill: s.color, stroke: s.color, sw: 0, opacity: 100 });
+  for (const g of L.graphics) objs.push({ type: 'image', layer: 'Graphic', x: g.x0, y: g.y0, w: g.x1 - g.x0, h: g.y1 - g.y0, opacity: 100, filters: {}, ...img(g.canvas, true) });
+  for (const p of L.pictures) objs.push({ type: 'image', layer: 'Photo', x: p.x0, y: p.y0, w: p.x1 - p.x0, h: p.y1 - p.y0, opacity: 100, filters: {}, clip: p.shape === 'ellipse' ? 'ellipse' : undefined, ...img(p.canvas, false) });
+  for (const l of L.lines) {
+    for (const sg of l.segs) {
+      const font = l.font || 'sans', size = Math.round(l.size * 10) / 10;
+      const n = [...sg.text].length, target = sg.x1 - sg.x0;
+      const natural = textWidth({ text: sg.text, size, font, family: l.family, bold: sg.bold, italic: l.italic, ls: 0 });
+      const ls = n > 1 ? clampv((target - natural) / (n - 1), -0.08 * size, 0.8 * size) : 0;
+      objs.push({ type: 'text', layer: 'Text', text: sg.text, family: l.family, x: sg.x0, y: l.baseline - baseFrom(l.family, font, sg.bold, l.italic) * size, w: target, h: size * 1.2, size, font, bold: sg.bold, italic: l.italic, color: l.color, opacity: 100, align: 'left', ls: Math.round(ls * 100) / 100 });
+    }
+  }
+  return objs;
+}
 
 const STOP = new Set('a about above after again against all also am an and any are as at be because been before being below between both but by can could did do does doing down during each few for from further had has have having he her here hers herself him himself his how i if in into is it its itself just me more most my myself no nor not now of off on once only or other our ours ourselves out over own same she should so some such than that the their theirs them themselves then there these they this those through to too under until up very was we were what when where which while who whom why will with would you your yours yourself yourselves may might must shall one two also however thus therefore page pages'.split(' '));
 

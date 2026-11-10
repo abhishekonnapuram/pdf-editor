@@ -174,6 +174,11 @@ export function optionsForm(schema, initial = {}) {
         const out = h('span', { class: 'status' }, ` ${vals[o.key]}${o.unit || ''}`);
         row.firstChild.append(out);
         row.append(h('input', { type: 'range', min: o.min, max: o.max, step: o.step || 1, value: vals[o.key], oninput: (e) => { out.textContent = ` ${e.target.value}${o.unit || ''}`; set(+e.target.value); } }));
+      } else if (o.type === 'gfont') {
+        // Any Google font (loaded lazily to keep this helper light).
+        const slot = h('span', { class: 'status' }, 'Loading fonts…');
+        row.append(slot);
+        import('./fonts.js').then((m) => slot.replaceWith(m.fontPicker(vals[o.key] || '', (v) => set(v), { standardLabel: o.standardLabel || 'Use the font above' })));
       } else if (o.type === 'color') {
         row.append(h('input', { type: 'color', value: vals[o.key], oninput: (e) => set(e.target.value) }));
       } else if (o.type === 'file') {

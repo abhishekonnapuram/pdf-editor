@@ -1,6 +1,8 @@
 // Tool catalogue. Implementations are code-split and loaded when a tool is opened.
 export const CATEGORIES = [
   ['all', 'All'],
+  ['design', 'Design Studio'],
+  ['photo', 'Creative apps'],
   ['workflows', 'Workflows'],
   ['organize', 'Organize PDF'],
   ['optimize', 'Optimize PDF'],
@@ -12,7 +14,7 @@ export const CATEGORIES = [
 
 export const CAT_COLOR = {
   organize: 'var(--c-organize)', optimize: 'var(--c-optimize)', convert: 'var(--c-convert)',
-  edit: 'var(--c-edit)', security: 'var(--c-security)', intel: 'var(--c-intel)', workflows: 'var(--c-flow)'
+  edit: 'var(--c-edit)', security: 'var(--c-security)', intel: 'var(--c-intel)', workflows: 'var(--c-flow)', design: 'var(--c-design)', photo: 'var(--c-photo)'
 };
 
 const mods = {
@@ -21,12 +23,24 @@ const mods = {
   smart: () => import('./smart.js'),
   editor: () => import('./editor.js'),
   pages: () => import('./pages.js'),
-  extra: () => import('./extra.js')
+  extra: () => import('./extra.js'),
+  design: () => import('./design.js'),
+  fonts: () => import('./fonts.js'),
+  crafts: () => import('./crafts.js')
 };
 
 const T = (id, name, desc, cat, icon, mod, extra = {}) => ({ id, name, desc, cat, icon, mod, ...extra });
 
 export const TOOLS = [
+  T('creative-apps', 'Creative apps', 'Full creative apps in your browser: photo editing, vector art, RAW photo developing, video editing, motion graphics, audio and PDFs.', 'photo', 'grid', 'crafts', { tag: 'New' }),
+  T('photo-studio', 'Photo Studio', 'PhotoCraft, the full photo editor: layers, masks, adjustment layers, filters, layer styles, type, vectors, brushes and PSD files.', 'photo', 'image', 'crafts', { tag: 'New' }),
+  T('vectorcraft', 'VectorCraft', 'Vector art in your browser: logos, illustrations and icons with paths, shapes, gradients and type.', 'photo', 'pen', 'crafts', { tag: 'New' }),
+  T('lightcraft', 'LightCraft', 'Non-destructive photo developing: RAW and JPG editing, exposure, colour, curves and presets.', 'photo', 'filter', 'crafts', { tag: 'New' }),
+  T('filmcraft', 'FilmCraft', 'Video editor with a multi-track timeline: cut, trim, titles, transitions and audio.', 'photo', 'scan', 'crafts', { tag: 'New' }),
+  T('effectcraft', 'EffectCraft', 'Motion graphics and compositing: animated text, shapes, keyframes and effects.', 'photo', 'ai', 'crafts', { tag: 'New' }),
+  T('soundcraft', 'SoundCraft', 'Audio workstation (DAW): record, arrange, mix and edit music, voice-overs and podcasts.', 'photo', 'workflow', 'crafts', { tag: 'New' }),
+  T('pdfcraft', 'PdfCraft', 'A full PDF reader and editor app: read, annotate, edit and search PDFs.', 'photo', 'page', 'crafts', { tag: 'New' }),
+  T('design-studio', 'Design Studio', 'Create social posts, ads, YouTube thumbnails, banners, posters and business cards with templates, fonts, icons, brand kit and one-click resize.', 'design', 'stamp', 'design', { tag: 'New' }),
   T('merge', 'Merge PDF', 'Combine PDFs in the order you want. Drag to reorder before merging.', 'organize', 'merge', 'simple'),
   T('split', 'Split PDF', 'Split by ranges, every N pages, or pull out just the pages you need.', 'organize', 'split', 'simple'),
   T('compress', 'Compress PDF', 'Shrink file size with a choice of quality levels and a before/after size report.', 'optimize', 'compress', 'simple'),
@@ -59,7 +73,11 @@ export const TOOLS = [
   T('translate', 'Translate PDF', 'Translate PDF text while keeping the layout.', 'intel', 'translate', 'extra', { server: true }),
   T('pdf-to-md', 'PDF to Markdown', 'Turn PDFs into Markdown with headings, lists and links preserved.', 'convert', 'markdown', 'convert'),
   T('pdf-to-text', 'PDF to Text', 'Extract all text from a PDF into a plain .txt file.', 'convert', 'text', 'convert', { tag: 'Extra' }),
-  T('image-to-editable', 'Image to editable', 'Turn a resume or document picture (or scanned PDF) into an editable PDF and Word file that looks exactly the same.', 'convert', 'ocr', 'smart', { tag: 'New' }),
+  T('font-finder', 'Font Finder', 'Identify the font in any picture: upload a logo, poster or screenshot and get the closest Google fonts, free to use.', 'design', 'text', 'fonts', { tag: 'New' }),
+  T('screenshot-to-template', 'Screenshot to template', 'Upload a screenshot or snapshot of any design: it is rebuilt in high resolution as an editable template (layers, matched fonts) that opens in Design Studio.', 'design', 'scan', 'smart', { tag: 'New' }),
+  T('image-to-layers', 'Image to layers', 'Split a flat design, poster or screenshot into separate layers: text, photos, shapes and graphics you can move, edit and delete.', 'design', 'organize', 'smart', { tag: 'New' }),
+  T('image-hd', 'Recreate in HD', 'Recreate a picture at 2×, 3× or 4× resolution: text and shapes redrawn razor-sharp, photos enlarged with on-device AI.', 'design', 'image', 'smart', { tag: 'New' }),
+  T('image-to-editable','Image to editable', 'Turn a resume or document picture (or scanned PDF) into an editable PDF and Word file that looks exactly the same.', 'convert', 'ocr', 'smart', { tag: 'New' }),
   T('edit-images','Edit PDF images', 'Change the words inside pictures and scanned pages, erase parts of images, replace, crop or recolour them.', 'edit', 'imgedit', 'editor', { tag: 'Extra' }),
   T('workflow', 'Create a workflow', 'Chain tools together (rotate, watermark, number, compress, protect…) and reuse them anytime.', 'workflows', 'workflow', 'extra')
 ];
