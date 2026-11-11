@@ -120,7 +120,8 @@ export const ops = {
 
   async compress(doc, o, ctx) {
     // Re-encode embedded JPEG photos at a lower size/quality; text and vectors stay untouched.
-    const { maxSide, quality } = { low: { maxSide: 2400, quality: 0.8 }, recommended: { maxSide: 1600, quality: 0.62 } }[o.level] || { maxSide: 1600, quality: 0.62 };
+    const { maxSide, quality } = o.maxSide ? o : ({ low: { maxSide: 2400, quality: 0.8 }, recommended: { maxSide: 1600, quality: 0.62 } }[o.level] || { maxSide: 1600, quality: 0.62 });
+    const minBytes = o.minBytes ?? 30_000;
     const objs = doc.context.enumerateIndirectObjects();
     let k = 0;
     for (const [ref, obj] of objs) {
@@ -134,7 +135,7 @@ export const ops = {
       const cs = d.get(PDFName.of('ColorSpace'));
       if (cs === PDFName.of('DeviceCMYK') || d.get(PDFName.of('Decode'))) continue;
       const bytes = obj.contents;
-      if (bytes.length < 30_000) continue;
+      if (bytes.length < minBytes) continue;
       try {
         const bmp = await createImageBitmap(new Blob([bytes], { type: 'image/jpeg' }));
         const s = Math.min(1, maxSide / Math.max(bmp.width, bmp.height));
@@ -159,6 +160,31 @@ export const ops = {
     }
   }
 };
+
+// Try stronger and stronger settings until the PDF fits under maxBytes.
+async function compressToSize(bytes, maxBytes, o, ctx) {
+  if (bytes.length <= maxBytes) return { bytes, note: 'It was already small enough, so it was kept as it was.' };
+  let best = bytes;
+  const steps = [[2400, 0.8], [1800, 0.68], [1400, 0.58], [1100, 0.48], [900, 0.4], [700, 0.32], [520, 0.25]];
+  for (let i = 0; i < steps.length; i++) {
+    ctx?.progress?.(0.05 + 0.5 * i / steps.length, `Trying photo quality ${Math.round(steps[i][1] * 100)}%…`);
+    const doc = await loadPdfLib(bytes);
+    await ops.compress(doc, { maxSide: steps[i][0], quality: steps[i][1], minBytes: 6000 });
+    if (!o.meta) { doc.setTitle(''); doc.setAuthor(''); doc.setSubject(''); doc.setKeywords([]); doc.setProducer(''); doc.setCreator(''); }
+    const out = await doc.save({ useObjectStreams: true });
+    if (out.length < best.length) best = out;
+    if (out.length <= maxBytes) return { bytes: out, note: 'Text stays selectable.' };
+    if (i >= 1 && out.length > best.length * 0.98 && out.length >= bytes.length * 0.97) break; // photos aren't what makes it big
+  }
+  if (o.allowRaster) {
+    for (const [dpi, q] of [[150, 0.7], [130, 0.6], [110, 0.5], [96, 0.42], [80, 0.36], [72, 0.3], [60, 0.26], [50, 0.22]]) {
+      const out = await (await rasterize(bytes, dpi, q, { progress: (p) => ctx?.progress?.(0.55 + 0.4 * p, `Pages as images at ${dpi} DPI…`) })).save({ useObjectStreams: true });
+      if (out.length < best.length) best = out;
+      if (out.length <= maxBytes) return { bytes: out, note: `Pages were turned into images (${dpi} DPI) to reach the size, so text can't be selected.` };
+    }
+  }
+  return { bytes: best, note: `Could not get under ${fmtSize(maxBytes)}; this is the smallest it can go${o.allowRaster ? '' : ' while keeping text selectable. Allow turning pages into images to go smaller'}.` };
+}
 
 async function rasterize(bytes, dpi, quality, ctx) {
   const src = await openPdfjs(bytes);
@@ -218,8 +244,11 @@ export const tools = {
   compress: {
     accept: PDF, multiple: true, label: 'Select PDF files', runLabel: 'Compress PDF',
     options: [
-      { key: 'level', label: 'Compression level', type: 'seg', default: 'recommended', options: [['low', 'Light'], ['recommended', 'Recommended'], ['extreme', 'Extreme']],
-        hint: 'Light and Recommended shrink photos and keep text selectable. Extreme turns each page into an image: smallest file, but text is no longer selectable.' },
+      { key: 'level', label: 'Compression level', type: 'seg', default: 'recommended', options: [['low', 'Light'], ['recommended', 'Recommended'], ['extreme', 'Extreme'], ['target', 'Exact file size']],
+        hint: 'Light and Recommended shrink photos and keep text selectable. Extreme turns each page into an image: smallest file, but text is no longer selectable. Exact file size: type the size a form or email asks for.' },
+      { key: 'target', label: 'Largest file size', type: 'number', default: 1, min: 0.01, step: 'any', showIf: (v) => v.level === 'target' },
+      { key: 'unitKB', label: 'Unit', type: 'seg', default: 'mb', options: [['kb', 'KB'], ['mb', 'MB']], showIf: (v) => v.level === 'target' },
+      { key: 'allowRaster', label: 'If needed, turn pages into images to reach the size', type: 'checkbox', default: true, showIf: (v) => v.level === 'target', hint: 'Only used when shrinking the photos is not enough. Text then can no longer be selected.' },
       { key: 'meta', label: 'Keep document info (title, author…)', type: 'checkbox', default: true, showIf: (v) => v.level !== 'extreme' }
     ],
     async process(files, o, ctx) {
@@ -228,6 +257,14 @@ export const tools = {
       for (const f of files) {
         const bytes = await readBytes(f);
         let outBytes;
+        if (o.level === 'target') {
+          const max = Math.round(+o.target * (o.unitKB === 'kb' ? 1024 : 1024 * 1024));
+          if (!(max > 0)) throw new Error('Enter the largest file size, for example 1 MB.');
+          const r = await compressToSize(bytes, max, o, ctx);
+          outputs.push({ name: stem(f.name) + '-compressed.pdf', blob: pdfBlob(r.bytes) });
+          notes.push(`${f.name}: ${fmtSize(bytes.length)} → ${fmtSize(r.bytes.length)}. ${r.note}`);
+          continue;
+        }
         if (o.level === 'extreme') {
           outBytes = await (await rasterize(bytes, 96, 0.5, ctx)).save({ useObjectStreams: true });
         } else {

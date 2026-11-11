@@ -8,7 +8,7 @@ import { findText, findPictures, eraseRegion, drawTexts, srcToCanvas, textWidth,
 import { h, ibtn, modal, pickFiles, toast, askPassword } from '../lib/ui.js';
 import { icon } from '../lib/icons.js';
 import { fontPicker, fontStack, embedGoogleFont } from '../lib/fonts.js';
-import { PHOTO_SOURCES, searchPhotos, fetchPhoto, stockKeys, setStockKey, ICON_SETS, MULTICOLOR, searchIcons, iconPreviewUrl, iconifySrc } from '../lib/stock.js';
+import { PHOTO_SOURCES, ALL_SOURCE, serverSources, searchPhotos, fetchPhoto, stockKeys, setStockKey, ICON_SETS, MULTICOLOR, searchIcons, iconPreviewUrl, iconifySrc } from '../lib/stock.js';
 import { ensureFonts, fontsReady, PALETTE, GRADIENTS, gradientCss, canvasGradient, ICONS, iconSrc, SIZES, loadBrand, saveBrand, saveDraft } from '../lib/design.js';
 
 const PDF = '.pdf,application/pdf';
@@ -1378,10 +1378,12 @@ export async function mountEditor(el, file, ctx, modeName = 'edit', opts = {}) {
     return wrap;
   }
   // Free stock photos (Pexels, Pixabay, Unsplash with a free key; Wikimedia Commons and Openverse without).
-  const stock = { source: (stockKeys().pexels && 'pexels') || 'wikimedia', q: '', results: [], page: 1, msg: '' };
+  const stock = { source: 'all', q: '', results: [], page: 1, msg: '', srv: null };
+  serverSources().then((set) => { stock.srv = set; });
   function stockPhotos() {
     const box = h('div', { style: { marginTop: '12px' } }, h('div', { class: 'lbl' }, 'Free stock photos'));
-    const src = PHOTO_SOURCES.find((x) => x.id === stock.source);
+    const src = stock.source === 'all' ? ALL_SOURCE : PHOTO_SOURCES.find((x) => x.id === stock.source);
+    const srv = stock.srv || new Set();
     const keys = stockKeys();
     const q = h('input', { class: 'inp', type: 'search', placeholder: 'Search photos, e.g. coffee, office, beach', value: stock.q });
     const go = async (more) => {
@@ -1401,9 +1403,9 @@ export async function mountEditor(el, file, ctx, modeName = 'edit', opts = {}) {
     q.addEventListener('keydown', (e) => { if (e.key === 'Enter') go(false); e.stopPropagation(); });
     box.append(
       h('select', { class: 'inp', style: { marginBottom: '6px' }, onchange: (e) => { stock.source = e.target.value; stock.results = []; stock.msg = ''; drawSide(); } },
-        PHOTO_SOURCES.map((x) => h('option', { value: x.id, selected: x.id === stock.source }, x.name + (x.needsKey ? (keys[x.id] ? '' : ' (needs a free key)') : ' (no key needed)')))),
+        [ALL_SOURCE, ...PHOTO_SOURCES].map((x) => h('option', { value: x.id, selected: x.id === stock.source }, x.name + (x.needsKey && !keys[x.id] && !srv.has(x.id) ? ' (needs a free key)' : '')))),
       h('div', { style: { display: 'flex', gap: '6px' } }, q, h('button', { class: 'btn small primary', type: 'button', onclick: () => go(false) }, 'Search')));
-    if (src.needsKey) {
+    if (src.needsKey && !srv.has(src.id)) {
       const k = h('input', { class: 'inp', type: 'password', placeholder: `Your ${src.name} API key`, value: keys[src.id] || '', autocomplete: 'off' });
       box.append(h('details', { class: 'keybox', open: !keys[src.id] }, h('summary', {}, keys[src.id] ? `${src.name} key saved` : `Add your free ${src.name} key`),
         h('p', { class: 'hint' }, 'Get a free key at ', h('a', { href: src.keyUrl, target: '_blank', rel: 'noopener' }, src.keyUrl.replace(/^https:\/\//, '')), ', then paste it here. It is kept only on this device.'),

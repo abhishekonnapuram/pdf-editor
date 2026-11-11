@@ -2,6 +2,7 @@
 export const CATEGORIES = [
   ['all', 'All'],
   ['design', 'Design Studio'],
+  ['image', 'Image tools'],
   ['photo', 'Creative apps'],
   ['workflows', 'Workflows'],
   ['organize', 'Organize PDF'],
@@ -14,7 +15,7 @@ export const CATEGORIES = [
 
 export const CAT_COLOR = {
   organize: 'var(--c-organize)', optimize: 'var(--c-optimize)', convert: 'var(--c-convert)',
-  edit: 'var(--c-edit)', security: 'var(--c-security)', intel: 'var(--c-intel)', workflows: 'var(--c-flow)', design: 'var(--c-design)', photo: 'var(--c-photo)'
+  edit: 'var(--c-edit)', security: 'var(--c-security)', intel: 'var(--c-intel)', workflows: 'var(--c-flow)', design: 'var(--c-design)', image: 'var(--c-image)', photo: 'var(--c-photo)'
 };
 
 const mods = {
@@ -29,7 +30,9 @@ const mods = {
   crafts: () => import('./crafts.js'),
   pagetools: () => import('./pagetools.js'),
   pdfa: () => import('./pdfa.js'),
-  translate: () => import('./translate.js')
+  translate: () => import('./translate.js'),
+  images: () => import('./images.js'),
+  imagestudio: () => import('./imagestudio.js')
 };
 
 const T = (id, name, desc, cat, icon, mod, extra = {}) => ({ id, name, desc, cat, icon, mod, ...extra });
@@ -44,6 +47,19 @@ export const TOOLS = [
   T('soundcraft', 'SoundCraft', 'Audio workstation (DAW): record, arrange, mix and edit music, voice-overs and podcasts.', 'photo', 'workflow', 'crafts', { tag: 'New' }),
   T('pdfcraft', 'PdfCraft', 'A full PDF reader and editor app: read, annotate, edit and search PDFs.', 'photo', 'page', 'crafts', { tag: 'New' }),
   T('design-studio', 'Design Studio', 'Create social posts, ads, YouTube thumbnails, banners, posters and business cards with templates, fonts, icons, brand kit and one-click resize.', 'design', 'stamp', 'design', { tag: 'New' }),
+  T('compress-image', 'Compress image', 'Make JPG, PNG, WEBP, SVG and GIF files smaller while keeping them sharp.', 'image', 'compress', 'images'),
+  T('resize-image', 'Resize image', 'Set the size in pixels or by percentage for many JPG, PNG, WEBP, SVG and GIF images at once.', 'image', 'resize', 'images'),
+  T('crop-image', 'Crop image', 'Crop JPG, PNG or GIF images with a visual editor or exact pixels, in common shapes like 1:1 and 16:9.', 'image', 'crop', 'imagestudio'),
+  T('convert-to-jpg', 'Convert to JPG', 'Turn PNG, GIF, TIFF, PSD, SVG, WEBP, HEIC or camera RAW pictures into JPG, many at once.', 'image', 'jpg', 'images'),
+  T('convert-from-jpg', 'Convert from JPG', 'Turn JPG pictures into PNG, WEBP or GIF, or put several JPGs together into an animated GIF.', 'image', 'image', 'images'),
+  T('photo-editor', 'Photo editor', 'Add text, stickers, frames and effects to your photos.', 'image', 'edit', 'imagestudio'),
+  T('upscale-image', 'Upscale image', 'Enlarge JPG and PNG pictures 2× or 4× with on-device AI that adds detail instead of blur.', 'image', 'upscale', 'images', { tag: 'New' }),
+  T('remove-background', 'Remove background', 'Cut out people, products and objects from their background automatically, with on-device AI.', 'image', 'cutout', 'images', { tag: 'New' }),
+  T('watermark-image', 'Watermark image', 'Stamp text or a logo over your images, with font, transparency, rotation and position, or as a mosaic.', 'image', 'stamp', 'images'),
+  T('meme-generator', 'Meme generator', 'Make a meme from your own picture: top and bottom text, captions, any font.', 'image', 'smile', 'imagestudio'),
+  T('rotate-image', 'Rotate image', 'Rotate or mirror many JPG, PNG and GIF images at once, or only the landscape or portrait ones.', 'image', 'rotate', 'images'),
+  T('html-to-image', 'HTML to image', 'Turn a web page or HTML into a JPG, PNG or SVG picture.', 'image', 'html', 'images'),
+  T('blur-face', 'Blur face', 'Blur faces in photos automatically, and hide licence plates or other private details.', 'image', 'face', 'imagestudio', { tag: 'New' }),
   T('merge', 'Merge PDF', 'Combine PDFs in the order you want. Drag to reorder before merging.', 'organize', 'merge', 'simple'),
   T('split', 'Split PDF', 'Split by ranges, every N pages, or pull out just the pages you need.', 'organize', 'split', 'simple'),
   T('compress', 'Compress PDF', 'Shrink file size with a choice of quality levels and a before/after size report.', 'optimize', 'compress', 'simple'),

@@ -5,7 +5,7 @@ import { icon } from '../lib/icons.js';
 import { SIZES, sizeById, TEMPLATES, ensureFonts, loadDraft } from '../lib/design.js';
 
 // Open the editor on a W×H canvas (1 PDF point per pixel, so downloads come out at the design size).
-async function openDesign(el, ctx, { W, H, objs, name = 'design', sizeId, groups = {} }) {
+export async function openDesign(el, ctx, { W, H, objs, name = 'design', sizeId, groups = {} }, restart) {
   const { mountEditor } = await import('./editor.js');
   const d = await PDFDocument.create();
   d.addPage([W, H]);
@@ -26,7 +26,7 @@ async function openDesign(el, ctx, { W, H, objs, name = 'design', sizeId, groups
   }
   el.replaceChildren();
   window.scrollTo({ top: 0 });
-  await mountEditor(el, file, { ...ctx, restart: () => studioHome(el, ctx) }, 'design', { initial: [objs], groups, name, sizeId });
+  await mountEditor(el, file, { ...ctx, restart: restart || (() => studioHome(el, ctx)) }, 'design', { initial: [objs], groups, name, sizeId });
 }
 
 const blank = (W, H) => [{ type: 'rect', layer: 'Background', isBg: true, locked: true, x: 0, y: 0, w: W, h: H, fill: '#ffffff', stroke: '#ffffff', sw: 0, opacity: 100 }];

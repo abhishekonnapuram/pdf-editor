@@ -24,16 +24,59 @@ if ('launchQueue' in window) {
   });
 }
 
+const NAV = () => [
+  ...['merge', 'split', 'compress', 'edit', 'sign', 'ocr'].map((id) => ['#/tool/' + id, toolById(id).name.replace(' PDF', ''), '']),
+  ['#/tool/design-studio', 'Design Studio', 'navhot'],
+  ['#/tool/photo-studio', 'Photo Studio', 'navhot'],
+  ['#/tool/creative-apps', 'Creative apps', 'navhot'],
+  ['#/', 'All tools', '']];
+
+// ---------- light / dark ----------
+const THEME_KEY = 'editsupreme.theme';
+function savedTheme() { try { return localStorage.getItem(THEME_KEY); } catch { return null; } }
+function applyTheme(t) {
+  document.documentElement.dataset.theme = t;
+  document.querySelector('meta[name="theme-color"]')?.setAttribute('content', t === 'dark' ? '#0f1526' : '#14213d');
+  const b = document.getElementById('themebtn');
+  if (b) {
+    b.innerHTML = icon(t === 'dark' ? 'sun' : 'moon');
+    b.title = t === 'dark' ? 'Switch to light mode' : 'Switch to dark mode';
+    b.setAttribute('aria-label', b.title);
+  }
+}
+// Follow the system setting until the visitor picks a mode themselves.
+matchMedia('(prefers-color-scheme: dark)').addEventListener('change', (e) => { if (!savedTheme()) applyTheme(e.matches ? 'dark' : 'light'); });
+
+function themeButton() {
+  const b = h('button', { class: 'iconbtn themebtn', id: 'themebtn', type: 'button', onclick: () => {
+    const t = document.documentElement.dataset.theme === 'dark' ? 'light' : 'dark';
+    try { localStorage.setItem(THEME_KEY, t); } catch { /* private mode */ }
+    applyTheme(t);
+  } });
+  queueMicrotask(() => applyTheme(document.documentElement.dataset.theme || 'light'));
+  return b;
+}
+
+function openMenu() {
+  const close = () => { bg.remove(); document.removeEventListener('keydown', esc); };
+  const esc = (e) => { if (e.key === 'Escape') close(); };
+  const bg = h('div', { class: 'drawer-bg', onclick: (e) => { if (e.target === bg) close(); } },
+    h('nav', { class: 'drawer', 'aria-label': 'Menu' },
+      h('div', { class: 'drawer-head' },
+        h('img', { src: './logo.png', alt: 'EditSupreme', height: 40 }),
+        h('button', { class: 'iconbtn', type: 'button', 'aria-label': 'Close menu', html: icon('x'), onclick: close })),
+      NAV().map(([href, label, cls]) => h('a', { href, class: cls, onclick: close }, label))));
+  document.addEventListener('keydown', esc);
+  document.body.append(bg);
+  bg.querySelector('a')?.focus();
+}
+
 function header() {
-  const nav = h('nav', { class: 'topnav' },
-    ['merge', 'split', 'compress', 'edit', 'sign', 'ocr'].map((id) => h('a', { href: '#/tool/' + id }, toolById(id).name.replace(' PDF', ''))),
-    h('a', { href: '#/tool/design-studio', class: 'navhot' }, 'Design Studio'),
-    h('a', { href: '#/tool/photo-studio', class: 'navhot' }, 'Photo Studio'),
-    h('a', { href: '#/tool/creative-apps', class: 'navhot' }, 'Creative apps'),
-    h('a', { href: '#/' }, 'All tools'));
+  const nav = h('nav', { class: 'topnav' }, NAV().map(([href, label, cls]) => h('a', { href, class: cls || null }, label)));
   return h('header', { class: 'topbar' },
+    h('button', { class: 'iconbtn menubtn', type: 'button', 'aria-label': 'Open menu', html: icon('menu'), onclick: openMenu }),
     h('a', { class: 'brand', href: '#/', 'aria-label': 'EditSupreme home' }, h('img', { src: './logo.png', alt: 'EditSupreme', width: 116, height: 44 })),
-    nav, h('div', { class: 'spacer' }), h('span', { id: 'installslot' }));
+    h('div', { class: 'spacer' }), nav, h('span', { id: 'installslot' }), themeButton());
 }
 
 function renderInstall() {
@@ -53,7 +96,8 @@ function toolCard(t) {
   return h('a', { class: 'card', href: '#/tool/' + t.id, style: { '--tc': CAT_COLOR[t.cat] } },
     t.server ? h('span', { class: 'tag' }, 'Server') : t.tag ? h('span', { class: 'tag plus' }, t.tag) : null,
     h('div', { class: 'ticon', html: icon(t.icon) }),
-    h('h3', {}, t.name), h('p', {}, t.desc));
+    h('h3', {}, t.name), h('p', {}, t.desc),
+    h('span', { class: 'go', 'aria-hidden': 'true' }, 'Open →'));
 }
 
 function home() {
@@ -73,15 +117,26 @@ function home() {
   draw();
   const isStandalone = matchMedia('(display-mode: standalone)').matches;
   return h('main', {},
-    h('section', { class: 'wrap hero' },
-      h('h1', {}, 'Every PDF tool you need, on every device'),
-      h('p', {}, `${TOOLS.filter((t) => !t.server).length} tools to merge, split, compress, convert, edit, sign, secure and understand PDFs. Your files are processed on your own device and never uploaded.`),
+    h('section', { class: 'herowrap' },
+      h('div', { class: 'heroart', 'aria-hidden': 'true' }, FLOATERS.map(([ic, cat], i) => h('span', { class: 'floater f' + i, style: { '--tc': CAT_COLOR[cat] }, html: icon(ic) }))),
+      h('div', { class: 'wrap hero' },
+      h('span', { class: 'eyebrow' }, h('span', { class: 'dot' }), 'Free · No sign-up · Private'),
+      h('h1', {}, 'Every PDF tool you need, ', h('span', { class: 'grad' }, 'on every device')),
+      h('p', {}, `${TOOLS.filter((t) => !t.server).length} tools to merge, split, compress, convert, edit, sign, secure and understand PDFs, plus image tools and creative apps. Your files are processed on your own device and never uploaded.`),
+      h('div', { class: 'cta' },
+        h('a', { class: 'btn primary big', href: '#tools', onclick: (e) => { e.preventDefault(); document.getElementById('tools')?.scrollIntoView({ behavior: 'smooth' }); } }, 'Browse all tools'),
+        h('a', { class: 'btn big glass', href: '#/tool/design-studio' }, h('span', { html: icon('image') }), 'Open Design Studio')),
       h('div', { class: 'badges' },
         h('span', { class: 'pill', html: icon('shield') + ' Private: files stay on your device' }),
         h('span', { class: 'pill', html: icon('offline') + ' Works offline' }),
         h('span', { class: 'pill', html: icon('devices') + ' Phone, tablet & desktop' })),
-      h('div', { class: 'search' }, h('input', { type: 'search', placeholder: 'Search tools…', value: query, 'aria-label': 'Search tools', oninput: (e) => { query = e.target.value; draw(); } }))),
-    h('section', { class: 'wrap' }, chips, grid),
+      h('div', { class: 'search' }, h('span', { class: 'sicon', html: icon('search') }), h('input', { type: 'search', placeholder: 'Search tools, e.g. compress, sign, resize…', value: query, 'aria-label': 'Search tools', oninput: (e) => { query = e.target.value; draw(); } })),
+      h('div', { class: 'stats' },
+        stat(String(TOOLS.filter((t) => !t.server).length), 'tools'),
+        stat('0', 'files uploaded'),
+        stat('100%', 'free'),
+        stat('Offline', 'after first visit')))),
+    h('section', { class: 'wrap', id: 'tools' }, chips, grid),
     h('section', { class: 'wrap section' },
       h('h2', {}, 'Work your way'),
       h('div', { class: 'features' },
@@ -89,10 +144,31 @@ function home() {
         feature('offline', 'Offline-ready', 'After the first visit everything keeps working without internet. OCR languages are downloaded once, then cached.'),
         feature('shield', 'Nothing is uploaded', 'Processing happens in your browser. No accounts, no file limits, no waiting in a queue.'),
         feature('workflow', 'Chain tools together', 'Send a result straight into another tool, or save a reusable workflow that runs several steps at once.'))),
-    h('footer', { class: 'footer' }, `EditSupreme · Your complete PDF editing solution · Runs on your device · ${new Date().getFullYear()}`));
+    h('section', { class: 'wrap' },
+      h('div', { class: 'ctaband' },
+        h('div', {}, h('h2', {}, 'Your files never leave your device'), h('p', {}, 'No uploads, no accounts, no watermarks. Install EditSupreme and use it like any other app, even offline.')),
+        h('a', { class: 'btn big light', href: '#/tool/edit' }, 'Start editing a PDF'))),
+    footer());
 }
 
-const feature = (ic, title, text) => h('div', { class: 'feature' }, h('div', { class: 'ticon', style: { '--tc': 'var(--accent)' }, html: icon(ic) }), h('h3', {}, title), h('p', {}, text));
+const FLOATERS = [['merge', 'organize'], ['sign', 'edit'], ['image', 'image'], ['compress', 'optimize'], ['lock', 'security'], ['word', 'convert']];
+const stat = (n, label) => h('div', { class: 'stat' }, h('b', {}, n), h('span', {}, label));
+
+function footer() {
+  const col = (title, ids) => h('div', { class: 'fcol' }, h('h4', {}, title),
+    ids.map((id) => toolById(id)).filter(Boolean).map((t) => h('a', { href: '#/tool/' + t.id }, t.name)));
+  return h('footer', { class: 'footer' },
+    h('div', { class: 'wrap fgrid' },
+      h('div', { class: 'fcol fbrand' }, h('img', { src: './logo.png', alt: 'EditSupreme', height: 44 }),
+        h('p', {}, 'Your complete PDF editing solution. Everything runs in your browser, so your files stay private.')),
+      col('PDF tools', ['merge', 'split', 'compress', 'edit', 'sign', 'ocr']),
+      col('Image tools', ['compress-image', 'resize-image', 'remove-background', 'crop-image', 'convert-to-jpg']),
+      col('Create', ['design-studio', 'photo-studio', 'creative-apps', 'workflow'])),
+    h('div', { class: 'fbottom' }, `© ${new Date().getFullYear()} EditSupreme · Runs on your device`));
+}
+
+const FEATURE_COLORS = { install: 'var(--c-convert)', offline: 'var(--c-optimize)', shield: 'var(--accent)', workflow: 'var(--c-flow)' };
+const feature = (ic, title, text) => h('div', { class: 'feature', style: { '--tc': FEATURE_COLORS[ic] || 'var(--accent)' } }, h('div', { class: 'ticon', html: icon(ic) }), h('h3', {}, title), h('p', {}, text));
 
 async function toolPage(id) {
   const meta = toolById(id);
@@ -100,7 +176,7 @@ async function toolPage(id) {
   document.title = `${meta.name} – EditSupreme`;
   const main = h('main', { class: 'wrap' });
   main.append(h('a', { class: 'back', href: '#/', html: icon('left') + ' All tools' }),
-    h('div', { class: 'toolhead' }, h('div', { class: 'ticon lg', style: { '--tc': CAT_COLOR[meta.cat] }, html: icon(meta.icon) }),
+    h('div', { class: 'toolhead', style: { '--tc': CAT_COLOR[meta.cat] } }, h('div', { class: 'ticon lg', html: icon(meta.icon) }),
       h('div', {}, h('h1', {}, meta.name), h('p', {}, meta.desc))));
   const body = h('div');
   main.append(body);
@@ -110,10 +186,11 @@ async function toolPage(id) {
 
   const ctxBase = { meta, toast };
   const NON_PDF_INPUT = ['creative-apps', 'vectorcraft', 'lightcraft', 'filmcraft', 'effectcraft', 'soundcraft', 'pdfcraft', 'photo-studio', 'font-finder', 'design-studio', 'image-hd', 'word-to-pdf', 'ppt-to-pdf', 'excel-to-pdf', 'html-to-pdf', 'jpg-to-pdf', 'scan', 'workflow'];
-  const tools = TOOLS.filter((t) => !t.server && t.id !== id && !NON_PDF_INPUT.includes(t.id));
+  const imgTools = TOOLS.filter((t) => (t.cat === 'image' && t.id !== 'html-to-image' && t.id !== id) || t.id === 'jpg-to-pdf');
+  const tools = TOOLS.filter((t) => !t.server && t.id !== id && !NON_PDF_INPUT.includes(t.id) && t.cat !== 'image');
   const finish = (outputs, note) => {
     body.replaceChildren(resultView(outputs, {
-      note, tools,
+      note, tools, imgTools,
       onRestart: () => start([]),
       onChain: (tid, files) => { handoff = files; location.hash = '#/tool/' + tid; }
     }));

@@ -1,5 +1,8 @@
 // Small stroke icon set (24x24 grid).
 const P = {
+  sun: '<circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/>',
+  moon: '<path d="M20 14.5A8 8 0 0 1 9.5 4 8 8 0 1 0 20 14.5z"/>',
+  menu: '<path d="M4 6h16M4 12h16M4 18h16"/>',
   merge: '<path d="M8 4v5a4 4 0 0 0 4 4 4 4 0 0 1 4 4v3"/><path d="M16 4v5a4 4 0 0 1-4 4"/><path d="m13 17 3 3 3-3"/>',
   split: '<path d="M12 20v-6a4 4 0 0 0-4-4H4"/><path d="M12 14a4 4 0 0 1 4-4h4"/><path d="m7 7-3 3 3 3"/><path d="m17 7 3 3-3 3"/>',
   compress: '<path d="m4 14 6 0 0 6"/><path d="m20 10-6 0 0-6"/><path d="m14 10 7-7"/><path d="m3 21 7-7"/>',
@@ -71,6 +74,11 @@ const P = {
   checkbox: '<rect x="4" y="4" width="16" height="16" rx="2"/><path d="m8 12 3 3 5-6"/>',
   field: '<rect x="3" y="7" width="18" height="10" rx="2"/><path d="M7 10v4"/>',
   dropdown: '<rect x="3" y="7" width="18" height="10" rx="2"/><path d="m14 11 2 2 2-2"/>',
+  resize: '<rect x="3" y="9" width="12" height="12" rx="1.5"/><path d="M14 3h7v7"/><path d="m21 3-8 8"/>',
+  upscale: '<rect x="3" y="3" width="18" height="18" rx="2"/><path d="m8 16 4-4 4 4"/><path d="m8 11 4-4 4 4"/>',
+  cutout: '<path d="M12 3a4 4 0 0 1 4 4c0 2.2-1.8 4-4 4s-4-1.8-4-4a4 4 0 0 1 4-4z"/><path d="M5 21c0-3.9 3.1-7 7-7s7 3.1 7 7"/><path d="M3 3h2M8 3h1M15 3h1M19 3h2M3 7v1M21 7v1"/>',
+  smile: '<circle cx="12" cy="12" r="9"/><path d="M8 14.5c1 1.5 2.4 2.2 4 2.2s3-.7 4-2.2"/><path d="M9 9.5h.01M15 9.5h.01"/>',
+  face: '<path d="M4 8V5a1 1 0 0 1 1-1h3M16 4h3a1 1 0 0 1 1 1v3M20 16v3a1 1 0 0 1-1 1h-3M8 20H5a1 1 0 0 1-1-1v-3"/><circle cx="12" cy="10" r="3"/><path d="M7 17c1.2-2 3-3 5-3s3.8 1 5 3"/>',
   grid: '<circle cx="5" cy="5" r="1.6"/><circle cx="12" cy="5" r="1.6"/><circle cx="19" cy="5" r="1.6"/><circle cx="5" cy="12" r="1.6"/><circle cx="12" cy="12" r="1.6"/><circle cx="19" cy="12" r="1.6"/><circle cx="5" cy="19" r="1.6"/><circle cx="12" cy="19" r="1.6"/><circle cx="19" cy="19" r="1.6"/>'
 };
 

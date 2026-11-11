@@ -47,8 +47,7 @@ async function makeTranslator(src, tgt, onStatus) {
     } catch (e) { console.warn('built-in translator not usable, using offline models', e); }
   }
   // 2. Small offline models (Opus-MT), via English when needed.
-  const { pipeline, env } = await import('@huggingface/transformers');
-  env.allowLocalModels = false;
+  const { pipeline } = await (await import('../lib/ai.js')).transformers();
   const load = (id) => pipeline('translation', id, { dtype: 'q8', progress_callback: (p) => { if (p.status === 'progress' && p.file?.endsWith('.onnx')) onStatus(`downloading the translation model ${Math.round(p.progress || 0)}% (once)`); } });
   const steps = [];
   if (src !== 'en') steps.push({ model: await load(`Xenova/opus-mt-${TO_EN.has(src) ? (src === 'ja' ? 'jap' : src) : 'mul'}-en`), prefix: '' });

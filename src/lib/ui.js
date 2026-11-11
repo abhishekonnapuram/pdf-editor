@@ -1,6 +1,6 @@
 // Tiny DOM helpers and the shared building blocks used by every tool page.
 import { icon } from './icons.js';
-import { fmtSize, isPdf, isImage, pdfThumb, readBytes, download, zipOutputs } from './core.js';
+import { fmtSize, isPdf, isImage, pdfThumb, readBytes, download, zipOutputs, openPdfjs, renderPage } from './core.js';
 
 export function h(tag, attrs = {}, ...kids) {
   const el = document.createElement(tag);
@@ -8,7 +8,13 @@ export function h(tag, attrs = {}, ...kids) {
     if (v == null || v === false) continue;
     if (k === 'class') el.className = v;
     else if (k === 'html') el.innerHTML = v;
-    else if (k === 'style' && typeof v === 'object') Object.assign(el.style, v);
+    else if (k === 'style' && typeof v === 'object') {
+      // CSS variables (--tc etc.) need setProperty; Object.assign silently ignores them.
+      for (const [sk, sv] of Object.entries(v)) {
+        if (sv == null) continue;
+        if (sk.startsWith('--')) el.style.setProperty(sk, sv); else el.style[sk] = sv;
+      }
+    }
     else if (k.startsWith('on')) el.addEventListener(k.slice(2), v);
     else if (v === true) el.setAttribute(k, '');
     else el.setAttribute(k, v);
@@ -61,14 +67,22 @@ export function pickFiles(accept, multiple, capture) {
   });
 }
 
-export function dropzone({ accept, multiple, label, onFiles, capture }) {
+// Opens the free stock photo search (Pexels, Pixabay, Unsplash, Wikimedia, Openverse) and returns a File or null.
+export async function stockPhoto(opts = {}) {
+  const m = await import('./stock.js');
+  return m.pickStockPhoto(opts);
+}
+const takesImages = (accept) => /image\/|\.jpe?g|\.png|\.webp/i.test(accept || '');
+
+export function dropzone({ accept, multiple, label, onFiles, capture, stock }) {
   const zone = h('div', { class: 'drop' },
     h('div', { class: 'ticon lg', style: { margin: '0 auto', '--tc': 'var(--accent)' }, html: icon('upload') }),
     h('h2', {}, label),
     h('p', {}, 'or drop ' + (multiple ? 'files' : 'a file') + ' here'),
     h('div', { class: 'row' },
       h('button', { class: 'btn primary big', type: 'button', onclick: async () => { const f = await pickFiles(accept, multiple); if (f.length) onFiles(f); } }, 'Choose ' + (multiple ? 'files' : 'file')),
-      capture && h('button', { class: 'btn big', type: 'button', onclick: async () => { const f = await pickFiles('image/*', true, 'environment'); if (f.length) onFiles(f); } }, h('span', { html: icon('camera') }), 'Use camera')
+      capture && h('button', { class: 'btn big', type: 'button', onclick: async () => { const f = await pickFiles('image/*', true, 'environment'); if (f.length) onFiles(f); } }, h('span', { html: icon('camera') }), 'Use camera'),
+      (stock ?? takesImages(accept)) && h('button', { class: 'btn big', type: 'button', onclick: async () => { const f = await stockPhoto({ title: 'Free stock photo' }); if (f) onFiles([f]); } }, h('span', { html: icon('image') }), 'Free stock photo')
     ));
   zone.addEventListener('dragover', (e) => { e.preventDefault(); zone.classList.add('over'); });
   zone.addEventListener('dragleave', () => zone.classList.remove('over'));
@@ -107,6 +121,9 @@ export function fileList(files, { accept, multiple, onChange }) {
         dragIdx = null; render(); onChange();
       });
       root.append(item);
+      thumb.title = 'Click to preview';
+      thumb.classList.add('canpreview');
+      thumb.addEventListener('click', () => previewFile(f));
       fillThumb(f, thumb, meta);
     });
     if (multiple) {
@@ -120,12 +137,78 @@ export function fileList(files, { accept, multiple, onChange }) {
   return root;
 }
 
+// Picture formats browsers can't show by themselves (TIFF, PSD, HEIC, camera RAW, SVG files).
+async function otherPicture(f) {
+  if (!f.name) return false;
+  const { kindOf } = await import('./imgio.js');
+  return ['tiff', 'psd', 'heic', 'raw', 'svg'].includes(kindOf(f));
+}
+async function pictureCanvas(f, max) {
+  const { readPicture } = await import('./imgio.js');
+  const src = (await readPicture(f)).frames[0].canvas;
+  const s = Math.min(1, max / Math.max(src.width, src.height));
+  const c = document.createElement('canvas');
+  c.width = Math.max(1, Math.round(src.width * s)); c.height = Math.max(1, Math.round(src.height * s));
+  c.getContext('2d').drawImage(src, 0, 0, c.width, c.height);
+  return c;
+}
+
+// Large preview of a file (PDF pages, a picture or text) in a pop-up.
+export function previewFile(blob, name = blob.name || 'file') {
+  const f = blob instanceof File ? blob : new File([blob], name, { type: blob.type });
+  const stage = h('div', { class: 'pvstage' }, h('p', { class: 'status' }, 'Loading preview…'));
+  const info = h('span', { class: 'status' }, fmtSize(f.size));
+  let alive = true;
+  const close = () => { alive = false; bg.remove(); document.removeEventListener('keydown', esc); };
+  const esc = (e) => { if (e.key === 'Escape') close(); };
+  const bg = h('div', { class: 'modal-bg', onclick: (e) => { if (e.target === bg) close(); } },
+    h('div', { class: 'modal pvmodal', role: 'dialog', 'aria-label': 'Preview of ' + name },
+      h('div', { class: 'pvhead' }, h('h3', { title: name }, name), info,
+        h('button', { class: 'iconbtn', type: 'button', 'aria-label': 'Close preview', html: icon('x'), onclick: close })),
+      stage));
+  document.addEventListener('keydown', esc);
+  document.body.append(bg);
+  (async () => {
+    try {
+      if (isPdf(f)) {
+        const doc = await openPdfjs(await readBytes(f));
+        const n = doc.numPages, show = Math.min(n, 40);
+        info.textContent = n + (n > 1 ? ' pages' : ' page') + ' · ' + fmtSize(f.size) + (n > show ? ' · showing the first ' + show : '');
+        stage.replaceChildren();
+        const width = Math.min(stage.clientWidth || 800, 900) * Math.min(2, devicePixelRatio || 1);
+        for (let i = 1; i <= show && alive; i++) {
+          const page = await doc.getPage(i);
+          const vp = page.getViewport({ scale: 1 });
+          const c = await renderPage(page, width / vp.width);
+          stage.append(h('figure', { class: 'pvpage' }, c, h('figcaption', {}, 'Page ' + i)));
+        }
+        doc.destroy();
+      } else if (await otherPicture(f)) {
+        stage.replaceChildren(await pictureCanvas(f, 1600));
+      } else if (isImage(f) || (f.type || '').startsWith('image/')) {
+        const img = h('img', { src: URL.createObjectURL(f), alt: name });
+        img.onload = () => { info.textContent = img.naturalWidth + ' × ' + img.naturalHeight + ' px · ' + fmtSize(f.size); };
+        stage.replaceChildren(img);
+      } else if (/^text\/|json|xml|csv/.test(f.type || '') || /\.(txt|md|csv|json|xml|html?)$/i.test(name)) {
+        stage.replaceChildren(h('pre', { class: 'pvtext' }, await f.slice(0, 200000).text()));
+      } else {
+        stage.replaceChildren(h('p', { class: 'status' }, 'No preview for this kind of file. You can still use it with the tools.'));
+      }
+    } catch (e) {
+      stage.replaceChildren(h('p', { class: 'status' }, /password/i.test(e.message || '') || e.name === 'PasswordException'
+        ? 'This PDF is password-protected, so it can not be previewed.' : 'Could not show a preview of this file.'));
+    }
+  })();
+}
+
 async function fillThumb(f, thumb, meta) {
   try {
     if (isPdf(f)) {
       const { canvas, pages } = await pdfThumb(await readBytes(f));
       thumb.replaceChildren(canvas);
       meta.textContent = `${pages} page${pages > 1 ? 's' : ''} · ${fmtSize(f.size)}`;
+    } else if (await otherPicture(f)) {
+      thumb.replaceChildren(await pictureCanvas(f, 300));
     } else if (isImage(f)) {
       const img = h('img', { src: URL.createObjectURL(f), alt: '' });
       thumb.replaceChildren(img);
@@ -183,11 +266,12 @@ export function optionsForm(schema, initial = {}) {
         row.append(h('input', { type: 'color', value: vals[o.key], oninput: (e) => set(e.target.value) }));
       } else if (o.type === 'file') {
         const name = h('span', { class: 'status' }, ' none');
-        row.append(h('button', { class: 'btn small', type: 'button', onclick: async () => { const [f] = await pickFiles(o.accept, false); if (f) { name.textContent = ' ' + f.name; set(f); } } }, 'Choose…'), name);
+        row.append(h('button', { class: 'btn small', type: 'button', onclick: async () => { const [f] = await pickFiles(o.accept, false); if (f) { name.textContent = ' ' + f.name; set(f); } } }, 'Choose…'),
+          takesImages(o.accept) && h('button', { class: 'btn small', type: 'button', onclick: async () => { const f = await stockPhoto({ title: o.label || 'Free stock photo', suggestion: o.stockHint }); if (f) { name.textContent = ' ' + f.name; set(f); } } }, 'Stock photo…'), name);
       } else if (o.type === 'textarea') {
         row.append(h('textarea', { placeholder: o.placeholder || '', oninput: (e) => set(e.target.value) }, vals[o.key] || ''));
       } else {
-        row.append(h('input', { type: o.type || 'text', value: vals[o.key] ?? '', placeholder: o.placeholder || '', min: o.min, max: o.max, autocomplete: o.type === 'password' ? 'new-password' : 'off', oninput: (e) => set(o.type === 'number' ? +e.target.value : e.target.value) }));
+        row.append(h('input', { type: o.type || 'text', value: vals[o.key] ?? '', placeholder: o.placeholder || '', min: o.min, max: o.max, step: o.type === 'number' ? (o.step || 'any') : undefined, autocomplete: o.type === 'password' ? 'new-password' : 'off', oninput: (e) => set(o.type === 'number' ? +e.target.value : e.target.value) }));
       }
     }
     if (o.hint) row.append(h('div', { class: 'hint' }, o.hint));
@@ -209,16 +293,35 @@ export function progressBox() {
 }
 
 // Result screen: download buttons, zip, text preview, and hand-off to another tool.
-export function resultView(outputs, { title = 'Done!', onRestart, tools, onChain, note }) {
+export function resultView(outputs, { title = 'Done!', onRestart, tools, imgTools, onChain, note }) {
   const root = h('div', { class: 'panel result' });
   root.append(h('div', { class: 'ticon lg', style: { margin: '0 auto', '--tc': 'var(--ok)' }, html: icon('check') }), h('h2', {}, title));
   if (note) root.append(h('p', { class: 'status' }, note));
   const texts = outputs.filter((o) => o.preview);
   for (const t of texts) root.append(h('div', { class: 'textout' }, t.preview));
+  const pics = outputs.filter((o) => o.blob.type.startsWith('image/'));
+  const docs = outputs.filter((o) => o.blob.type === 'application/pdf');
+  if (pics.length || docs.length) {
+    const strip = h('div', { class: 'imgprev' });
+    for (const o of [...docs, ...pics].slice(0, 8)) {
+      const open = () => previewFile(o.blob, o.name);
+      if (o.blob.type === 'application/pdf') {
+        const tile = h('button', { class: 'pdfprev', type: 'button', title: 'Preview ' + o.name, onclick: open }, h('span', { class: 'status' }, '…'));
+        strip.append(tile);
+        readBytes(o.blob).then((b) => pdfThumb(b, 180))
+          .then(({ canvas, pages }) => tile.replaceChildren(canvas, h('span', { class: 'pg' }, pages + (pages > 1 ? ' pages' : ' page'))))
+          .catch(() => tile.remove());
+      } else {
+        strip.append(h('img', { src: URL.createObjectURL(o.blob), alt: o.name, title: 'Preview ' + o.name, class: 'canpreview', onclick: open }));
+      }
+    }
+    root.append(strip);
+  }
   const list = h('div', { class: 'outlist' });
   for (const o of outputs) {
     list.append(h('div', { class: 'outrow' },
       h('div', { class: 'n', title: o.name }, o.name),
+      /^(application\/pdf|image\/|text\/)/.test(o.blob.type) && h('button', { class: 'btn small ghost', type: 'button', onclick: () => previewFile(o.blob, o.name) }, 'Preview'),
       h('div', { class: 's' }, fmtSize(o.blob.size)),
       h('button', { class: 'btn small primary', type: 'button', onclick: () => download(o.blob, o.name) }, h('span', { html: icon('download') }), 'Download')));
   }
@@ -233,6 +336,11 @@ export function resultView(outputs, { title = 'Done!', onRestart, tools, onChain
   if (pdfs.length && tools) {
     const sel = h('select', { class: 'inp', style: { width: 'auto' } }, h('option', { value: '' }, 'Continue with another tool…'), tools.map((t) => h('option', { value: t.id }, t.name)));
     sel.addEventListener('change', () => sel.value && onChain(sel.value, pdfs.map((o) => new File([o.blob], o.name, { type: 'application/pdf' }))));
+    row.append(sel);
+  }
+  if (pics.length && imgTools?.length) {
+    const sel = h('select', { class: 'inp', style: { width: 'auto' } }, h('option', { value: '' }, 'Continue with another image tool…'), imgTools.map((t) => h('option', { value: t.id }, t.name)));
+    sel.addEventListener('change', () => sel.value && onChain(sel.value, pics.map((o) => new File([o.blob], o.name, { type: o.blob.type }))));
     row.append(sel);
   }
   row.append(h('button', { class: 'btn ghost', type: 'button', onclick: onRestart }, 'Start over'));
