@@ -755,3 +755,26 @@ img, canvas { display: block; }
 
 /* Room for the floating Ask AI button */
 main.wrap { padding-bottom: 84px; }
+
+/* ---------- image to layers: choose objects ---------- */
+.olstage { display: grid; place-items: center; padding: 12px; border-radius: 12px; background: repeating-conic-gradient(var(--surface-2) 0 25%, var(--surface) 0 50%) 0 0 / 22px 22px; }
+.olview { max-width: 100%; max-height: 68vh; height: auto; cursor: crosshair; border-radius: 4px; box-shadow: 0 10px 30px rgba(0, 0, 0, .2); }
+.olbusy .olview { cursor: progress; }
+.olstatus { display: flex; align-items: center; gap: 8px; min-height: 22px; margin-top: 10px; font-size: 14px; color: var(--muted); }
+.olbtns { display: grid; gap: 8px; margin: 12px 0 6px; }
+.olbtns .btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; }
+.olbtns .btn svg, .sidepanel .btn.primary svg { width: 18px; height: 18px; }
+.sidepanel .btn.primary { display: inline-flex; align-items: center; justify-content: center; gap: 8px; margin-top: 14px; }
+.olhead { margin: 16px 0 6px; font-size: 11.5px; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); }
+.ollist { display: grid; gap: 4px; max-height: 260px; overflow-y: auto; }
+.olitem { display: flex; align-items: center; border-radius: 8px; border: 1px solid transparent; }
+.olitem.on { background: var(--surface-2); border-color: var(--line); }
+.olname { flex: 1; display: flex; align-items: center; gap: 8px; padding: 6px 8px; border: 0; background: none; font: inherit; font-size: 14px; color: var(--text); cursor: pointer; text-align: left; }
+.olname .dot { width: 12px; height: 12px; border-radius: 50%; flex: none; }
+.olx { border: 0; background: none; cursor: pointer; color: var(--muted); font-size: 18px; padding: 2px 9px; border-radius: 6px; }
+.olx:hover { background: var(--surface-2); color: var(--text); }
+.olsel { margin-top: 8px; }
+.olsizes { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
+.olsizes .chip { padding: 5px 10px; font-size: 13px; }
+.sidepanel .check { display: block; margin: 8px 0; font-size: 14px; }
+.sidepanel .check .hint { margin: 2px 0 0 24px; }

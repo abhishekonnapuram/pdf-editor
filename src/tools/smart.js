@@ -144,18 +144,30 @@ export const tools = {
   },
 
   'image-to-layers': {
-    accept: 'image/*,' + PDF, multiple: false, label: 'Select a design, poster, resume or social post (JPG, PNG, WEBP or PDF)',
+    accept: 'image/*,' + PDF, multiple: false, label: 'Select any photo, design, poster or social post (JPG, PNG, WEBP or PDF)',
     async mount(el, [f], ctx) {
       const { h } = await import('../lib/ui.js');
+      el.replaceChildren(h('p', { class: 'status' }, 'Opening your picture…'));
+      let canvas, choice;
+      try {
+        canvas = await fileToCanvas(f);
+        const { looksLikeDesign } = await import('../lib/layers.js');
+        const { pickObjects } = await import('./layerpick.js');
+        choice = await pickObjects(el, canvas, { design: looksLikeDesign(canvas) });
+      } catch (e) {
+        console.error(e);
+        el.replaceChildren(h('p', { class: 'error' }, 'Could not open this picture: ' + e.message));
+        return;
+      }
       const msg = h('div', { class: 'status' }, 'Starting…');
       const bar = h('div', { class: 'progress' }, h('div', { style: { width: '4%' } }));
       el.replaceChildren(h('div', { class: 'card', style: { padding: '28px', textAlign: 'center' } },
         h('h3', { style: { margin: '0 0 8px' } }, 'Splitting your picture into layers…'), msg, bar,
-        h('p', { class: 'hint' }, 'Text, photos, shapes and graphics are separated on your device. The text reader downloads the first time.')));
-      const steps = ['enhancing', 'reading text', 'finding photos', 'finding shapes', 'reading text on coloured', 'matching fonts', 'separating graphics'];
-      const onStatus = (m) => { msg.textContent = m[0].toUpperCase() + m.slice(1) + '…'; const i = steps.findIndex((s) => m.startsWith(s)); if (i >= 0) bar.firstChild.style.width = 8 + i * 14 + '%'; };
+        h('p', { class: 'hint' }, 'Objects, text, photos, shapes and graphics are separated on your device. The AI models download the first time.')));
+      const steps = ['reading text', 'finding photos', 'finding shapes', 'reading text on coloured', 'matching fonts', 'separating graphics', 'cutting out', 'downloading the fill', 'filling in', 'enhancing'];
+      const onStatus = (m) => { msg.textContent = m[0].toUpperCase() + m.slice(1) + '…'; const i = steps.findIndex((s) => m.startsWith(s)); if (i >= 0) bar.firstChild.style.width = 8 + i * 9 + '%'; };
       try {
-        const d = await pictureToDesign(f, onStatus, { enhance: ctx.meta?.id === 'screenshot-to-template' ? 'always' : 'auto' });
+        const d = await pictureToDesign(f, onStatus, { canvas, ...choice, enhance: ctx.meta?.id === 'screenshot-to-template' ? 'always' : choice.objects.length ? 'never' : 'auto' });
         onStatus('opening the Design Studio editor');
         // A page the size of the picture (1pt per pixel), so downloads come out at the original size.
         const doc = await PDFDocument.create();
@@ -291,11 +303,13 @@ async function fileToCanvas(f) {
 }
 
 /** A picture (or the first page of a PDF) split into editable design layers: {W, H, objs}. */
-export async function pictureToDesign(f, onStatus, { enhance = 'auto' } = {}) {
-  const canvas = await fileToCanvas(f);
+export async function pictureToDesign(f, onStatus, { enhance = 'auto', canvas = null, objects = [], withText = true, fill = true } = {}) {
+  canvas ||= await fileToCanvas(f);
   const { analyseLayers } = await import('../lib/layers.js');
   // Layers are found at the picture's own size (enlarging first would also enlarge JPEG noise).
-  const L = await analyseLayers(canvas, { onStatus });
+  const L = await analyseLayers(canvas, { onStatus, withText });
+  L.objects = [];
+  if (objects.length) await addObjectLayers(L, objects, { onStatus, fill });
   // Screenshots and small pictures are then rebuilt larger: text and shapes are redrawn sharp at the
   // new size, and only photos and graphics are enlarged with the AI model.
   const long = Math.max(L.W, L.H);
@@ -308,12 +322,45 @@ export async function pictureToDesign(f, onStatus, { enhance = 'auto' } = {}) {
   return { W: L.W, H: L.H, objs };
 }
 
+// Objects chosen by the user (soft masks at the picture's size) become their own see-through layers. What they
+// covered is filled in on the background and photo layers, so moving an object leaves no hole.
+async function addObjectLayers(L, objects, { onStatus, fill }) {
+  const { cutObject, holeMask } = await import('../lib/objlayers.js');
+  const { inpaint } = await import('../lib/inpaint.js');
+  const W = L.W, H = L.H;
+  onStatus?.('cutting out the objects');
+  for (const o of objects) {
+    const c = cutObject(L.clean, o.alpha);
+    if (c) L.objects.push({ ...c, name: o.name });
+  }
+  // Back to front: things lower in the picture are usually nearer, so they go on top.
+  L.objects.sort((a, b) => a.y1 - b.y1 || (b.x1 - b.x0) * (b.y1 - b.y0) - (a.x1 - a.x0) * (a.y1 - a.y0));
+  const hole = holeMask(objects.map((o) => o.alpha), W, H, Math.max(2, Math.round(Math.max(W, H) / 250)));
+  const inside = (b) => {
+    let n = 0, m = 0;
+    const step = Math.max(1, Math.round(Math.min(b.x1 - b.x0, b.y1 - b.y0) / 20));
+    for (let y = Math.floor(b.y0); y < Math.min(H, b.y1); y += step) for (let x = Math.floor(b.x0); x < Math.min(W, b.x1); x += step) { m++; n += hole[y * W + x]; }
+    return m ? n / m : 0;
+  };
+  // Graphics the objects now cover would show twice.
+  L.graphics = L.graphics.filter((g) => inside(g) < 0.5);
+  if (!fill) return;
+  if (L.bg.canvas) await inpaint(L.bg.canvas, hole, { onStatus });
+  for (const p of L.pictures) {
+    const x0 = Math.floor(p.x0), y0 = Math.floor(p.y0), w = p.canvas.width, hh = p.canvas.height;
+    const sub = new Uint8Array(w * hh);
+    let any = 0;
+    for (let y = 0; y < hh; y++) for (let x = 0; x < w; x++) { const X = x + x0, Y = y + y0; if (X < W && Y < H && hole[Y * W + X]) { sub[y * w + x] = 1; any++; } }
+    if (any) await inpaint(p.canvas, sub, { onStatus });
+  }
+}
+
 // Enlarge a layer analysis S times: geometry and text sizes scale, picture layers go through the AI.
 async function scaleLayers(L, S, onStatus) {
   const { aiUpscale } = await import('../lib/hd.js');
   const bgColor = L.bg.color || '#ffffff';
   const sc = (b) => { b.x0 *= S; b.y0 *= S; b.x1 *= S; b.y1 *= S; };
-  const jobs = [...L.pictures.map((p) => ['p', p]), ...L.graphics.map((g) => ['g', g]), ...(L.bg.canvas ? [['b', L.bg]] : [])];
+  const jobs = [...L.pictures.map((p) => ['p', p]), ...L.graphics.map((g) => ['g', g]), ...(L.objects || []).map((o) => ['g', o]), ...(L.bg.canvas ? [['b', L.bg]] : [])];
   let n = 0;
   for (const [kind, it] of jobs) {
     onStatus?.(`enhancing pictures with AI (${++n} of ${jobs.length})`);
@@ -336,6 +383,7 @@ async function scaleLayers(L, S, onStatus) {
   for (const s of L.shapes) sc(s);
   for (const p of L.pictures) sc(p);
   for (const g of L.graphics) sc(g);
+  for (const o of L.objects || []) sc(o);
   for (const l of L.lines) {
     sc(l.bbox);
     l.baseline *= S; l.size *= S; if (l.ls) l.ls *= S;
@@ -366,6 +414,7 @@ async function layersToObjects(L) {
   for (const s of L.shapes) objs.push({ type: s.kind, layer: s.kind === 'ellipse' ? 'Circle' : (s.y1 - s.y0 <= 6 || s.x1 - s.x0 <= 6) ? 'Line' : 'Shape', x: s.x0, y: s.y0, w: s.x1 - s.x0, h: s.y1 - s.y0, fill: s.color, stroke: s.color, sw: 0, opacity: 100 });
   for (const g of L.graphics) objs.push({ type: 'image', layer: 'Graphic', x: g.x0, y: g.y0, w: g.x1 - g.x0, h: g.y1 - g.y0, opacity: 100, filters: {}, ...img(g.canvas, true) });
   for (const p of L.pictures) objs.push({ type: 'image', layer: 'Photo', x: p.x0, y: p.y0, w: p.x1 - p.x0, h: p.y1 - p.y0, opacity: 100, filters: {}, clip: p.shape === 'ellipse' ? 'ellipse' : undefined, ...img(p.canvas, false) });
+  for (const o of L.objects || []) objs.push({ type: 'image', layer: o.name || 'Object', x: o.x0, y: o.y0, w: o.x1 - o.x0, h: o.y1 - o.y0, opacity: 100, filters: {}, ...img(o.canvas, true) });
   for (const l of L.lines) {
     for (const sg of l.segs) {
       const font = l.font || 'sans', size = Math.round(l.size * 10) / 10;

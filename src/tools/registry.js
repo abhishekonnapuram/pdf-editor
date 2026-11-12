@@ -103,7 +103,7 @@ export const TOOLS = [
   T('pdf-to-text', 'PDF to Text', 'Extract all text from a PDF into a plain .txt file.', 'convert', 'text', 'convert', { tag: 'Extra' }),
   T('font-finder', 'Font Finder', 'Identify the font in any picture: upload a logo, poster or screenshot and get the closest Google fonts, free to use.', 'design', 'text', 'fonts', { tag: 'New' }),
   T('screenshot-to-template', 'Screenshot to template', 'Upload a screenshot or snapshot of any design: it is rebuilt in high resolution as an editable template (layers, matched fonts) that opens in Design Studio.', 'design', 'scan', 'smart', { tag: 'New' }),
-  T('image-to-layers', 'Image to layers', 'Split a flat design, poster or screenshot into separate layers: text, photos, shapes and graphics you can move, edit and delete.', 'design', 'organize', 'smart', { tag: 'New' }),
+  T('image-to-layers', 'Image to layers', 'Split any photo, design or poster into layers with free on-device AI: click any object or person to cut it out, the background is filled in behind it, and text, shapes and graphics become editable too.', 'design', 'organize', 'smart', { tag: 'New' }),
   T('image-hd', 'Recreate in HD', 'Recreate a picture at 2×, 3× or 4× resolution: text and shapes redrawn razor-sharp, photos enlarged with on-device AI.', 'design', 'image', 'smart', { tag: 'New' }),
   T('image-to-editable','Image to editable', 'Turn a resume or document picture (or scanned PDF) into an editable PDF and Word file that looks exactly the same.', 'convert', 'ocr', 'smart', { tag: 'New' }),
   T('edit-images','Edit PDF images', 'Change the words inside pictures and scanned pages, erase parts of images, replace, crop or recolour them.', 'edit', 'imgedit', 'editor', { tag: 'Extra' }),
