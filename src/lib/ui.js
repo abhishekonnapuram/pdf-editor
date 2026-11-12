@@ -82,7 +82,7 @@ export function dropzone({ accept, multiple, label, onFiles, capture, stock }) {
     h('div', { class: 'row' },
       h('button', { class: 'btn primary big', type: 'button', onclick: async () => { const f = await pickFiles(accept, multiple); if (f.length) onFiles(f); } }, 'Choose ' + (multiple ? 'files' : 'file')),
       capture && h('button', { class: 'btn big', type: 'button', onclick: async () => { const f = await pickFiles('image/*', true, 'environment'); if (f.length) onFiles(f); } }, h('span', { html: icon('camera') }), 'Use camera'),
-      (stock ?? takesImages(accept)) && h('button', { class: 'btn big', type: 'button', onclick: async () => { const f = await stockPhoto({ title: 'Free stock photo' }); if (f) onFiles([f]); } }, h('span', { html: icon('image') }), 'Free stock photo')
+      stock && takesImages(accept) && h('button', { class: 'btn big', type: 'button', onclick: async () => { const f = await stockPhoto({ title: 'Free stock photo' }); if (f) onFiles([f]); } }, h('span', { html: icon('image') }), 'Free stock photo')
     ));
   zone.addEventListener('dragover', (e) => { e.preventDefault(); zone.classList.add('over'); });
   zone.addEventListener('dragleave', () => zone.classList.remove('over'));
@@ -267,7 +267,7 @@ export function optionsForm(schema, initial = {}) {
       } else if (o.type === 'file') {
         const name = h('span', { class: 'status' }, ' none');
         row.append(h('button', { class: 'btn small', type: 'button', onclick: async () => { const [f] = await pickFiles(o.accept, false); if (f) { name.textContent = ' ' + f.name; set(f); } } }, 'Choose…'),
-          takesImages(o.accept) && h('button', { class: 'btn small', type: 'button', onclick: async () => { const f = await stockPhoto({ title: o.label || 'Free stock photo', suggestion: o.stockHint }); if (f) { name.textContent = ' ' + f.name; set(f); } } }, 'Stock photo…'), name);
+          o.stock && takesImages(o.accept) && h('button', { class: 'btn small', type: 'button', onclick: async () => { const f = await stockPhoto({ title: o.label || 'Free stock photo', suggestion: o.stockHint }); if (f) { name.textContent = ' ' + f.name; set(f); } } }, 'Stock photo…'), name);
       } else if (o.type === 'textarea') {
         row.append(h('textarea', { placeholder: o.placeholder || '', oninput: (e) => set(e.target.value) }, vals[o.key] || ''));
       } else {

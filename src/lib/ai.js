@@ -11,3 +11,28 @@ export function transformers() {
   });
   return ready;
 }
+
+const within = (p, ms) => Promise.race([p, new Promise((_, rej) => setTimeout(() => rej(new Error('timeout')), ms))]);
+
+/**
+ * The language model built into the browser (Chrome / Edge Prompt API), free and on-device.
+ * 'available' | 'downloadable' | 'downloading' | 'unavailable'.
+ */
+export async function builtinAIStatus() {
+  if (typeof self === 'undefined' || !('LanguageModel' in self)) return 'unavailable';
+  try { return await within(self.LanguageModel.availability({ expectedInputs: [{ type: 'text', languages: ['en'] }], expectedOutputs: [{ type: 'text', languages: ['en'] }] }), 6000); }
+  catch { return 'unavailable'; }
+}
+
+/** A chat session with the browser's model, or null. Only downloads the model when `allowDownload` is set. */
+export async function builtinAI(system, { allowDownload = false, onStatus = () => {} } = {}) {
+  const st = await builtinAIStatus();
+  if (st === 'unavailable' || (st !== 'available' && !allowDownload)) return null;
+  try {
+    return await within(self.LanguageModel.create({
+      initialPrompts: [{ role: 'system', content: system }],
+      expectedInputs: [{ type: 'text', languages: ['en'] }], expectedOutputs: [{ type: 'text', languages: ['en'] }],
+      monitor(m) { m.addEventListener('downloadprogress', (e) => onStatus(`Downloading the browser's AI model ${Math.round((e.loaded || 0) * 100)}% (once)…`)); }
+    }), st === 'available' ? 20000 : 600000);
+  } catch { return null; }
+}

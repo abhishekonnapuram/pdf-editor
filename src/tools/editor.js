@@ -28,7 +28,7 @@ const MODES = {
   redact: { tools: ['select', '|', 'redact', 'whiteout'], save: 'Apply redactions', suffix: '-redacted', start: 'redact' },
   images: { tools: ['select', '|', 'editimage', 'imgtext', 'image'], save: 'Save PDF', suffix: '-edited', start: 'editimage' },
   forms: { tools: ['select', '|', 'textfield', 'checkbox', 'text'], save: 'Save fillable PDF', suffix: '-fillable', start: 'textfield' },
-  design: { tools: ['select', '|', 'text', 'image', 'rect', 'ellipse', 'line', 'arrow', 'pen'], save: 'Download', suffix: '-design', start: 'select' }
+  design: { tools: ['select', '|', 'text', 'image', 'rect', 'ellipse', 'line', 'arrow', 'pen', '|', 'brush', 'perase'], save: 'Download', suffix: '-design', start: 'select' }
 };
 
 const TOOL_INFO = {
@@ -47,6 +47,8 @@ const TOOL_INFO = {
   line: ['line', 'Line'],
   arrow: ['arrow', 'Arrow'],
   pen: ['pen', 'Draw'],
+  brush: ['brush', 'Brush (B)'],
+  perase: ['eraser', 'Eraser (E)'],
   highlight: ['highlight', 'Highlighter'],
   whiteout: ['eraser', 'White-out (cover content)'],
   redact: ['redact', 'Redact area'],
@@ -61,7 +63,10 @@ const HINTS = {
   imgtext: 'Click an image or a scanned page. EditSupreme reads the words in it; then click any highlighted line to retype it. The old letters are erased and the background is rebuilt.',
   text: 'Click on the page where the text should go, then type.',
   rect: 'Drag on the page to draw.', ellipse: 'Drag on the page to draw.', line: 'Drag on the page to draw.', arrow: 'Drag on the page to draw.',
-  pen: 'Draw freely with mouse, finger or stylus.', highlight: 'Drag across text to highlight it.',
+  pen: 'Draw freely with mouse, finger or stylus.',
+  brush: 'Paint on the selected photo or paint layer. With nothing selected, a new paint layer is made for you. If the layer has a mask and "Paint on the mask" is on, you paint the mask instead.',
+  perase: 'Erase parts of the selected photo or paint layer. On a mask, the eraser brings hidden parts back.',
+  highlight: 'Drag across text to highlight it.',
   whiteout: 'Drag over anything you want to hide behind a solid box.',
   redact: 'Drag over areas to black them out, or search for words on the right. On save, redacted pages are flattened so the hidden content is really gone.',
   textfield: 'Drag to place a fillable text box.', checkbox: 'Click to place a fillable checkbox.',
@@ -96,6 +101,10 @@ export async function mountEditor(el, file, ctx, modeName = 'edit', opts = {}) {
   // Text living inside an image: sub = selected item, subEditing = item being typed, imgMode = 'erase' | 'addtext'
   let sub = null, subEditing = null, imgMode = null;
   let ocrLang = 'eng', scanHinted = false, autosaveTimer = null;
+  // Design Studio: side panel tab, brush settings, and whether the brush paints a layer's mask.
+  let sideTab = 'props', maskEdit = false, clipTimer = null;
+  const ver = new WeakMap(), clipCache = new WeakMap(); // layer versions and cached clip masks
+  const brush = { size: 40, color: '#d7191f', opacity: 100, soft: 0, maskPaint: 'hide' };
   const selectLike = () => ['select', 'edittext', 'editimage', 'imgtext'].includes(tool);
   const undoStack = [], redoStack = [];
   const style = { color: '#1d2321', size: 16, font: 'sans', bold: false, italic: false, stroke: '#c2412d', fill: '', sw: 2, opacity: 100, hl: '#ffe14d' };
@@ -108,7 +117,10 @@ export async function mountEditor(el, file, ctx, modeName = 'edit', opts = {}) {
   const saveBtn = h('button', { class: 'btn primary', type: 'button', onclick: () => save() }, mode.save);
   const foot = h('div', { class: 'wsfoot' }, status, h('div', { class: 'grow', style: { flex: 1 } }),
     h('button', { class: 'btn ghost', type: 'button', onclick: () => { if (!hasChanges() || confirm('Discard your changes?')) ctx.restart(); } }, 'Cancel'), saveBtn);
-  const ws = h('div', { class: 'ws' }, h('div', { class: 'wsmain' }, toolbar, area, foot), side);
+  const ws = h('div', { class: 'ws' + (designMode ? ' design' : '') }, h('div', { class: 'wsmain' }, toolbar, area, foot), side);
+  // Always one click (or Esc) away from Select & move.
+  const backChip = h('button', { class: 'backsel hidden', type: 'button', onclick: () => setTool('select') }, h('span', { html: icon('cursor') }), 'Back to Select & move', h('span', { class: 'kbd' }, 'Esc'));
+  const chipBar = h('div', { class: 'chipbar' }, backChip);
   el.replaceChildren(ws);
 
   const hasChanges = () => pages.some((p) => p.objs.length);
@@ -118,17 +130,24 @@ export async function mountEditor(el, file, ctx, modeName = 'edit', opts = {}) {
 
   function drawToolbar() {
     toolbar.replaceChildren();
+    if (designMode) toolbar.append(h('button', { class: 'btn small', type: 'button', title: 'Start a new project', onclick: () => newProject() }, h('span', { html: icon('plus') }), 'New'), h('span', { class: 'sep' }));
+    const LABELS = { select: 'Select', text: 'Text', image: 'Image', brush: 'Brush', perase: 'Eraser' };
     for (const t of mode.tools) {
       if (t === '|') { toolbar.append(h('span', { class: 'sep' })); continue; }
       const [ic, title] = TOOL_INFO[t];
-      toolbar.append(ibtn(ic, title, () => setTool(t), tool === t ? 'active' : ''));
+      if (designMode && LABELS[t]) toolbar.append(h('button', { class: 'tbtn' + (tool === t ? ' active' : ''), type: 'button', title, 'aria-label': title, onclick: () => setTool(t) }, h('span', { html: icon(ic) }), h('span', {}, LABELS[t])));
+      else toolbar.append(ibtn(ic, title, () => setTool(t), tool === t ? 'active' : ''));
     }
+    backChip.classList.toggle('hidden', !designMode || tool === 'select');
     toolbar.append(h('span', { class: 'sep' }),
       ibtn('undo', 'Undo (Ctrl+Z)', undo), ibtn('redo', 'Redo (Ctrl+Y)', redo),
       h('span', { class: 'sep' }),
       ibtn('zoomout', 'Zoom out', () => setZoom(zoom / 1.2)),
       h('span', { class: 'lbl' }, Math.round(zoom * 100) + '%'),
-      ibtn('zoomin', 'Zoom in', () => setZoom(zoom * 1.2)));
+      ibtn('zoomin', 'Zoom in', () => setZoom(zoom * 1.2)),
+      designMode ? h('button', { class: 'btn small ghost', type: 'button', title: 'Fit the whole canvas on screen', onclick: () => setZoom(fitZoom()) }, 'Fit') : null,
+      designMode ? h('span', { class: 'grow' }) : null,
+      designMode ? h('button', { class: 'tbtn' + (sideTab === 'layers' ? ' active' : ''), type: 'button', title: 'Layers', onclick: () => { sideTab = sideTab === 'layers' ? 'props' : 'layers'; drawSide(); drawToolbar(); } }, h('span', { html: icon('layers') }), h('span', {}, 'Layers')) : null);
   }
 
   async function setTool(t) {
@@ -138,7 +157,8 @@ export async function mountEditor(el, file, ctx, modeName = 'edit', opts = {}) {
     pending = null;
     imgMode = null;
     sub = null;
-    select(null);
+    // Brush and eraser keep the selected layer: that is what they paint on.
+    if (!((t === 'brush' || t === 'perase') && sel?.o?.type === 'image')) select(null);
     if (t === 'image') {
       const [f] = await pickFiles('image/*', false);
       tool = 'select';
@@ -160,12 +180,13 @@ export async function mountEditor(el, file, ctx, modeName = 'edit', opts = {}) {
     const vp = page.getViewport({ scale: 1 });
     const canvas = h('canvas', { class: 'bg' });
     const overlay = h('div', { class: 'overlay' });
-    const wrap = h('div', { class: 'pagewrap', 'data-i': i - 1 }, canvas, overlay, h('span', { class: 'pnum' }, `${i} / ${view.numPages}`));
+    const wrap = h('div', { class: 'pagewrap', 'data-i': i - 1 }, canvas, overlay, designMode ? h('span', { class: 'pagesize' }, `Canvas ${Math.round(vp.width)} × ${Math.round(vp.height)} px`) : h('span', { class: 'pnum' }, `${i} / ${view.numPages}`));
     const p = { i: i - 1, page, vp, canvas, overlay, wrap, objs: [], rendered: 0, runs: null, imgs: null, existingEls: [] };
     pages.push(p);
     area.append(wrap);
     bindOverlay(p);
   }
+  if (designMode) area.prepend(chipBar);
   const io = new IntersectionObserver((entries) => {
     for (const e of entries) if (e.isIntersecting) { const p = pages[+e.target.dataset.i]; if (p.rendered !== zoom) renderBg(p); }
   }, { root: area, rootMargin: '600px' });
@@ -239,6 +260,32 @@ export async function mountEditor(el, file, ctx, modeName = 'edit', opts = {}) {
   function layoutObjs(p) {
     p.overlay.querySelectorAll('.obj, .cover').forEach((n) => n.remove());
     for (const o of p.objs) { if (o.cover) p.overlay.append(coverEl(o)); p.overlay.append(objEl(p, o)); }
+    scheduleClips(p);
+  }
+
+  // "Clip to the layer below": the layer only shows where the nearest unclipped layer under it is painted.
+  const clipBase = (p, o) => { let j = p.objs.indexOf(o) - 1; while (j >= 0 && p.objs[j].clipBelow) j--; return j >= 0 ? p.objs[j] : null; };
+  function scheduleClips(p) { if (!designMode) return; clearTimeout(clipTimer); clipTimer = setTimeout(() => updateClips(p), 40); }
+  async function updateClips(p) {
+    const W = p.vp.width, H = p.vp.height, z = zoom;
+    for (const o of p.objs) {
+      const n = p.overlay.querySelector(`.obj[data-id="${o.id}"]`);
+      if (!n) continue;
+      const base = o.clipBelow ? clipBase(p, o) : null;
+      if (!base) { if (n.dataset.clipped) { setMask(n, null); delete n.dataset.clipped; } continue; }
+      let c = clipCache.get(base);
+      const v = ver.get(base) || 0;
+      if (!c || c.v !== v) {
+        const s = Math.min(1, 900 / Math.max(W, H));
+        const cv = await renderDesign([{ ...base, hidden: false, opacity: 100 }], W, H, s, null);
+        c = { v, url: cv.toDataURL('image/png') };
+        clipCache.set(base, c);
+      }
+      const b = bbox(o);
+      setMask(n, c.url, `${W * z}px ${H * z}px`, `${-b.x * z}px ${-b.y * z}px`);
+      n.dataset.clipped = '1';
+      if (base.hidden) n.style.visibility = 'hidden';
+    }
   }
 
   // Hides the original content underneath edited text/images; stays put when the object is moved.
@@ -265,6 +312,7 @@ export async function mountEditor(el, file, ctx, modeName = 'edit', opts = {}) {
     } else if (o.type === 'image') {
       if (o.deleted) { e.style.display = 'none'; return e; }
       const imgEl = h('img', { src: o.src, alt: '', draggable: 'false', style: { filter: cssFilter(o.filters), transform: o.flipX ? 'scaleX(-1)' : '' } });
+      if (o.mask) setMask(imgEl, o.mask);
       if (o.clip && o.natW) {
         // Picture frame: the image is clipped to the shape (the selection handle stays outside the clip).
         const L = frameLayout(o);
@@ -326,6 +374,7 @@ export async function mountEditor(el, file, ctx, modeName = 'edit', opts = {}) {
     const prev = sel?.o;
     sel = s;
     if (prev && prev !== s?.o) {
+      if (!(s?.o?.mask)) maskEdit = false;
       // Leaving an image: drop its sub-selection and tool mode.
       const hadUi = sub || imgMode;
       sub = null; imgMode = null;
@@ -434,6 +483,8 @@ export async function mountEditor(el, file, ctx, modeName = 'edit', opts = {}) {
   }
   function chainOfGroup(p, gid) { const c = []; let g = G(p)[gid]?.parent; const seen = new Set(); while (g && !seen.has(g)) { seen.add(g); c.push(g); g = G(p)[g]?.parent; } return c; }
   function rerender(p, o) {
+    ver.set(o, (ver.get(o) || 0) + 1);
+    scheduleClips(p);
     const old = p.overlay.querySelector(`.obj[data-id="${o.id}"]`);
     const n = objEl(p, o);
     if (old) old.replaceWith(n); else p.overlay.append(n);
@@ -487,6 +538,8 @@ export async function mountEditor(el, file, ctx, modeName = 'edit', opts = {}) {
         ov.setPointerCapture(e.pointerId);
         return;
       }
+
+      if (designMode && (tool === 'brush' || tool === 'perase')) { e.preventDefault(); await startPaint(p, e, x, y); return; }
 
       // ----- content inside an image -----
       const imgObj = objNode && findObj(p, objNode.dataset.id);
@@ -624,6 +677,18 @@ export async function mountEditor(el, file, ctx, modeName = 'edit', opts = {}) {
       ov.setPointerCapture(e.pointerId);
       rerender(p, o);
     });
+
+    // Brush outline that follows the pointer.
+    const cur = h('div', { class: 'brushcur hidden' });
+    ov.append(cur);
+    ov.addEventListener('pointermove', (e) => {
+      if (!(designMode && (tool === 'brush' || tool === 'perase'))) { cur.classList.add('hidden'); return; }
+      const [x, y] = pt(e), d = brush.size * zoom;
+      if (!cur.isConnected) ov.append(cur);
+      cur.classList.remove('hidden');
+      Object.assign(cur.style, { width: d + 'px', height: d + 'px', left: x * zoom - d / 2 + 'px', top: y * zoom - d / 2 + 'px' });
+    });
+    ov.addEventListener('pointerleave', () => cur.classList.add('hidden'));
 
     ov.addEventListener('pointermove', (e) => {
       if (!drag) return;
@@ -1041,10 +1106,177 @@ export async function mountEditor(el, file, ctx, modeName = 'edit', opts = {}) {
     drawToolbar();
   }
 
+  // ---------- painting (brush, eraser, layer masks) ----------
+  const paintable = (o) => o && o.type === 'image' && !o.clip && !o.icon && !o.iconify && !o.poly && !o.deleted && !o.isBg;
+  function blankPng(w, hh, fill) {
+    const c = document.createElement('canvas'); c.width = Math.max(1, Math.round(w)); c.height = Math.max(1, Math.round(hh));
+    if (fill) { const g = c.getContext('2d'); g.fillStyle = fill; g.fillRect(0, 0, c.width, c.height); }
+    return c.toDataURL('image/png');
+  }
+  // A new transparent layer as big as the canvas, placed above the selected layer (or on top).
+  function addPaintLayer(p, selectIt = true) {
+    const W = p.vp.width, H = p.vp.height;
+    const n = { id: nid(), type: 'image', layer: 'Paint layer', paint: true, src: blankPng(W, H), natW: Math.round(W), natH: Math.round(H), x: 0, y: 0, w: W, h: H, opacity: 100, filters: {}, jpeg: false };
+    const at = sel && !sel.o.items && sel.o.type !== 'group' ? p.objs.indexOf(sel.o) : -1;
+    if (at >= 0) { n.gid = sel.o.gid; p.objs.splice(at + 1, 0, n); } else p.objs.push(n);
+    layoutObjs(p);
+    if (selectIt) select({ p, o: n }); else sel = { p, o: n };
+    return n;
+  }
+  function addFillLayer(p) {
+    commit();
+    const n = { id: nid(), type: 'rect', layer: 'Fill layer', x: 0, y: 0, w: p.vp.width, h: p.vp.height, fill: style.fill || '#d7191f', stroke: style.fill || '#d7191f', sw: 0, opacity: 100 };
+    const at = sel && !sel.o.items && sel.o.type !== 'group' ? p.objs.indexOf(sel.o) : -1;
+    if (at >= 0) p.objs.splice(at + 1, 0, n); else p.objs.push(n);
+    layoutObjs(p); select({ p, o: n });
+  }
+  async function startPaint(p, e, x, y) {
+    let o = sel?.o;
+    const onMask = !!(paintable(o) && o.mask && maskEdit);
+    if (!paintable(o)) {
+      if (tool === 'perase') { toast('Select a photo or a paint layer first, then erase on it.'); return; }
+      commit();
+      o = addPaintLayer(p, false);
+    } else commit();
+    const el0 = p.overlay.querySelector(`.obj[data-id="${o.id}"]`);
+    const B = await srcToCanvas(onMask ? o.mask : o.src);
+    const S = document.createElement('canvas'); S.width = B.width; S.height = B.height;
+    const D = document.createElement('canvas'); D.width = B.width; D.height = B.height;
+    const gs = S.getContext('2d'), gd = D.getContext('2d');
+    const kx = B.width / o.w, ky = B.height / o.h;
+    // Page point -> layer pixel (undoing the layer's rotation and mirror).
+    const toImg = (px, py) => {
+      let ax = px, ay = py;
+      if (o.rot) { const cx = o.x + o.w / 2, cy = o.y + o.h / 2, r = -o.rot * Math.PI / 180, dx = px - cx, dy = py - cy; ax = cx + dx * Math.cos(r) - dy * Math.sin(r); ay = cy + dx * Math.sin(r) + dy * Math.cos(r); }
+      let ix = (ax - o.x) * kx; const iy = (ay - o.y) * ky;
+      if (o.flipX && !onMask) ix = B.width - ix;
+      return [ix, iy];
+    };
+    const erase = onMask ? (tool === 'perase' ? false : brush.maskPaint === 'hide') : tool === 'perase';
+    gs.lineCap = 'round'; gs.lineJoin = 'round';
+    gs.lineWidth = Math.max(1, brush.size * kx);
+    gs.strokeStyle = onMask || erase ? '#ffffff' : brush.color;
+    if (brush.soft) gs.filter = `blur(${(brush.soft / 100) * brush.size * kx * 0.35}px)`;
+    let last = toImg(x, y);
+    const seg = (a, b) => { gs.beginPath(); gs.moveTo(a[0], a[1]); gs.lineTo(b[0] + 0.01, b[1]); gs.stroke(); };
+    seg(last, last);
+    const compose = () => {
+      gd.globalCompositeOperation = 'source-over'; gd.globalAlpha = 1;
+      gd.clearRect(0, 0, D.width, D.height); gd.drawImage(B, 0, 0);
+      gd.globalAlpha = brush.opacity / 100;
+      gd.globalCompositeOperation = erase ? 'destination-out' : 'source-over';
+      gd.drawImage(S, 0, 0);
+    };
+    // Live view: paint layers and photos show the canvas itself; masks update the mask image.
+    let img = el0?.querySelector('img'), raf = 0, maskTimer = 0;
+    const live = () => {
+      raf = 0; compose();
+      if (onMask) { if (!maskTimer) maskTimer = setTimeout(() => { maskTimer = 0; if (img) setMask(img, D.toDataURL('image/png')); }, 90); }
+    };
+    if (!onMask && el0 && img) {
+      Object.assign(D.style, { position: 'absolute', inset: 0, width: '100%', height: '100%', pointerEvents: 'none', filter: cssFilter(o.filters), transform: o.flipX ? 'scaleX(-1)' : '' });
+      if (o.mask) setMask(D, o.mask);
+      img.style.visibility = 'hidden';
+      el0.append(D);
+    }
+    live();
+    const ptOf = (ev) => { const r = p.overlay.getBoundingClientRect(); return [(ev.clientX - r.left) / zoom, (ev.clientY - r.top) / zoom]; };
+    const move = (ev) => { const q = toImg(...ptOf(ev)); seg(last, q); last = q; if (!raf) raf = requestAnimationFrame(live); };
+    const up = async () => {
+      window.removeEventListener('pointermove', move); window.removeEventListener('pointerup', up); window.removeEventListener('pointercancel', up);
+      cancelAnimationFrame(raf); clearTimeout(maskTimer);
+      compose();
+      const url = D.toDataURL('image/png');
+      if (onMask) o.mask = url; else { await setSrc(o, url); o.jpeg = false; }
+      rerender(p, o);
+      select({ p, o });
+      autosave();
+    };
+    window.addEventListener('pointermove', move); window.addEventListener('pointerup', up); window.addEventListener('pointercancel', up);
+  }
+  async function maskOp(p, o, kind) {
+    commit();
+    if (kind === 'add') { o.mask = blankPng(o.natW || o.w, o.natH || o.h, '#ffffff'); maskEdit = true; if (tool !== 'brush') { tool = 'brush'; drawToolbar(); } toast('Mask added. Paint with the Brush to hide parts; use the Eraser (or Reveal) to bring them back.', 5000); }
+    else if (kind === 'delete') { o.mask = undefined; maskEdit = false; }
+    else if (kind === 'invert' || kind === 'clear') {
+      const c = await srcToCanvas(o.mask), g = c.getContext('2d');
+      if (kind === 'clear') { g.globalCompositeOperation = 'source-over'; g.fillStyle = '#fff'; g.fillRect(0, 0, c.width, c.height); }
+      else { const d = g.getImageData(0, 0, c.width, c.height); for (let i = 3; i < d.data.length; i += 4) { d.data[i] = 255 - d.data[i]; d.data[i - 3] = d.data[i - 2] = d.data[i - 1] = 255; } g.putImageData(d, 0, 0); }
+      o.mask = c.toDataURL('image/png');
+    } else if (kind === 'apply') {
+      const c = await srcToCanvas(o.src), g = c.getContext('2d');
+      const m = await loadImage(o.mask);
+      g.globalCompositeOperation = 'destination-in';
+      if (o.flipX) { g.save(); g.translate(c.width, 0); g.scale(-1, 1); g.drawImage(m, 0, 0, c.width, c.height); g.restore(); } else g.drawImage(m, 0, 0, c.width, c.height);
+      await setSrc(o, c.toDataURL('image/png')); o.jpeg = false; o.mask = undefined; maskEdit = false;
+    }
+    rerender(p, o); select({ p, o });
+  }
+  function toggleClip(p, o) {
+    if (!o || o.type === 'group' || o.isBg) { toast('Select one layer that sits above another layer.'); return; }
+    if (!o.clipBelow && !clipBase(p, o)) { toast('There is no layer below this one to clip to.'); return; }
+    commit(); o.clipBelow = !o.clipBelow || undefined;
+    layoutObjs(p); select({ p, o });
+    if (o.clipBelow) toast('Clipped: this layer now only shows inside the layer below it.', 3500);
+  }
+
+  // Brush settings in the side panel.
+  function brushPanel() {
+    const o = sel?.o, onMaskable = paintable(o) && o.mask;
+    const row = (label, input) => h('div', { class: 'field' }, h('div', { class: 'lbl' }, label), input);
+    const box = h('div', { class: 'designbox' }, h('h4', {}, tool === 'brush' ? 'Brush' : 'Eraser'),
+      h('p', { class: 'hint', style: { marginTop: 0 } }, paintable(o) ? `Painting on: ${o.layer || 'Image'}${onMaskable && maskEdit ? ' (its mask)' : ''}` : tool === 'brush' ? 'Nothing selected: your first stroke makes a new paint layer.' : 'Select a photo or paint layer to erase on.'),
+      row(`Size ${brush.size}px`, h('input', { type: 'range', min: 1, max: 400, value: brush.size, oninput: (e) => { brush.size = +e.target.value; e.target.closest('.field').querySelector('.lbl').textContent = `Size ${brush.size}px`; } })),
+      row(`Softness ${brush.soft}%`, h('input', { type: 'range', min: 0, max: 100, value: brush.soft, oninput: (e) => { brush.soft = +e.target.value; e.target.closest('.field').querySelector('.lbl').textContent = `Softness ${brush.soft}%`; } })),
+      row(`Strength ${brush.opacity}%`, h('input', { type: 'range', min: 5, max: 100, value: brush.opacity, oninput: (e) => { brush.opacity = +e.target.value; e.target.closest('.field').querySelector('.lbl').textContent = `Strength ${brush.opacity}%`; } })));
+    if (tool === 'brush' && !(onMaskable && maskEdit)) box.append(row('Colour', h('div', { class: 'swatches' }, ...[...(brand.colors || []), '#000000', '#ffffff', '#d7191f', '#14213d', '#2f6fb0', '#1f9d55', '#e8784a', '#ffe14d'].slice(0, 12).map((c) => swatch(c, (v) => { brush.color = v; drawSide(); })), h('input', { type: 'color', value: brush.color, onchange: (e) => { brush.color = e.target.value; } }))));
+    if (onMaskable) {
+      box.append(h('label', { class: 'check', style: { margin: '6px 0' } }, h('input', { type: 'checkbox', checked: maskEdit, onchange: (e) => { maskEdit = e.target.checked; drawSide(); } }), 'Paint on the mask'));
+      if (maskEdit && tool === 'brush') box.append(h('div', { class: 'seg' }, [['hide', 'Hide (paint black)'], ['reveal', 'Reveal (paint white)']].map(([v, l]) => h('button', { type: 'button', class: brush.maskPaint === v ? 'on' : '', onclick: () => { brush.maskPaint = v; drawSide(); } }, l))));
+    }
+    box.append(h('div', { style: { display: 'flex', gap: '6px', flexWrap: 'wrap', marginTop: '8px' } },
+      h('button', { class: 'btn small', type: 'button', onclick: () => { commit(); addPaintLayer(dpage()); toast('New paint layer added.'); } }, h('span', { html: icon('plus') }), 'New paint layer'),
+      h('button', { class: 'btn small ghost', type: 'button', onclick: () => setTool('select') }, 'Done painting')));
+    return box;
+  }
+
+  // Layer mask controls for a selected image.
+  function maskControls(p, o) {
+    const box = h('div', { class: 'designbox' }, h('div', { class: 'lbl' }, 'Layer mask'));
+    if (!o.mask) {
+      box.append(h('p', { class: 'hint', style: { marginTop: 0 } }, 'Hide parts of this layer without deleting them: add a mask, then paint over what should disappear.'),
+        h('button', { class: 'btn small primary', type: 'button', onclick: () => maskOp(p, o, 'add') }, 'Add mask'));
+      return box;
+    }
+    box.append(h('img', { src: o.mask, alt: 'Mask', class: 'maskthumb', title: 'White shows the layer, transparent hides it' }),
+      h('label', { class: 'check', style: { margin: '6px 0' } }, h('input', { type: 'checkbox', checked: maskEdit, onchange: (e) => { maskEdit = e.target.checked; if (maskEdit && tool !== 'brush' && tool !== 'perase') setTool('brush'); else drawSide(); } }), 'Paint on the mask (with Brush / Eraser)'),
+      h('div', { style: { display: 'flex', gap: '6px', flexWrap: 'wrap' } },
+        h('button', { class: 'btn small', type: 'button', onclick: () => { maskEdit = true; brush.maskPaint = 'hide'; setTool('brush'); } }, 'Paint to hide'),
+        h('button', { class: 'btn small', type: 'button', onclick: () => { maskEdit = true; brush.maskPaint = 'reveal'; setTool('brush'); } }, 'Paint to reveal'),
+        h('button', { class: 'btn small', type: 'button', onclick: () => maskOp(p, o, 'invert') }, 'Invert'),
+        h('button', { class: 'btn small', type: 'button', onclick: () => maskOp(p, o, 'clear') }, 'Show all'),
+        h('button', { class: 'btn small', type: 'button', onclick: () => maskOp(p, o, 'apply') }, 'Apply'),
+        h('button', { class: 'btn small danger', type: 'button', onclick: () => maskOp(p, o, 'delete') }, 'Delete mask')));
+    return box;
+  }
+
+  // Tabs at the top of the Design Studio side panel.
+  function sideTabs() {
+    const n = pages[0].objs.length;
+    return h('div', { class: 'sidetabs' },
+      h('button', { type: 'button', class: sideTab === 'props' ? 'on' : '', onclick: () => { sideTab = 'props'; drawSide(); drawToolbar(); } }, sel ? 'Properties' : 'Design'),
+      h('button', { type: 'button', class: sideTab === 'layers' ? 'on' : '', onclick: () => { sideTab = 'layers'; drawSide(); drawToolbar(); } }, `Layers (${n})`));
+  }
+
   // ---------- side panel ----------
   function drawSide() {
     side.replaceChildren();
-    if (sel && sel.o.type === 'group') { side.append(groupPanel()); if (designMode) side.append(layersPanel()); return; }
+    if (designMode) {
+      side.append(sideTabs());
+      if (sideTab === 'layers') { side.append(layersPanel()); return; }
+      if (tool === 'brush' || tool === 'perase') { side.append(brushPanel()); if (!paintable(sel?.o)) return; }
+    }
+    if (sel && sel.o.type === 'group') { side.append(groupPanel()); return; }
     if (sel) {
       const { p, o } = sel;
       const set = (fn) => { commit(); fn(); const n = rerender(p, o); if (o.type === 'text') measureText(p, o, n); select({ p, o }); };
@@ -1073,7 +1305,11 @@ export async function mountEditor(el, file, ctx, modeName = 'edit', opts = {}) {
         return;
       }
       side.append(h('h4', {}, { text: 'Text', image: o.sig ? 'Signature' : 'Image', rect: 'Rectangle', ellipse: 'Ellipse', line: 'Line', arrow: 'Arrow', path: o.hl ? 'Highlight' : 'Drawing', whiteout: 'White-out', redact: 'Redaction', field: o.kind === 'checkbox' ? 'Checkbox field' : 'Text field' }[o.type]));
-      if (designMode) side.append(designObjectControls(p, o, set, row));
+      if (designMode) {
+        side.append(designObjectControls(p, o, set, row));
+        if (!o.isBg) side.append(h('label', { class: 'check', style: { margin: '0 0 12px' } }, h('input', { type: 'checkbox', checked: !!o.clipBelow, onchange: () => toggleClip(p, o) }), 'Clip to the layer below (show only inside it)'));
+        if (paintable(o)) side.append(maskControls(p, o));
+      }
       if (o.type === 'text') {
         side.append(
           h('div', { class: 'field' }, h('button', { class: 'btn small', type: 'button', onclick: () => startEditing(p, o) }, 'Edit wording')),
@@ -1188,7 +1424,6 @@ export async function mountEditor(el, file, ctx, modeName = 'edit', opts = {}) {
         h('button', { class: 'btn small', type: 'button', onclick: () => duplicate() }, h('span', { html: icon('copy') }), 'Duplicate'),
         h('button', { class: 'btn small', type: 'button', onclick: () => { commit(); p.objs.splice(p.objs.indexOf(o), 1); p.objs.push(o); layoutObjs(p); select({ p, o }); } }, 'Bring to front'),
         h('button', { class: 'btn small danger', type: 'button', onclick: () => removeSel() }, h('span', { html: icon('trash') }), 'Delete')));
-      if (designMode) side.append(layersPanel());
       return;
     }
     side.append(h('h4', {}, TOOL_INFO[tool]?.[1] || 'Tools'), h('p', { class: 'status' }, HINTS[tool] || ''));
@@ -1203,7 +1438,7 @@ export async function mountEditor(el, file, ctx, modeName = 'edit', opts = {}) {
     if (tool === 'highlight') side.append(h('div', { class: 'field' }, h('div', { class: 'lbl' }, 'Highlighter colour'), h('div', { class: 'seg' }, ['#ffe14d', '#7ee787', '#7cc4ff', '#ff9ecf'].map((c) => h('button', { type: 'button', style: { background: c, minHeight: '30px' }, class: style.hl === c ? 'on' : '', onclick: () => { style.hl = c; drawSide(); } })))));
     if (modeName === 'redact') side.append(searchRedact());
     if (modeName === 'images' || tool === 'editimage') side.append(imageList());
-    if (designMode) side.append(designPanels(), layersPanel());
+    if (designMode) side.append(designPanels());
     if (modeName === 'sign') side.append(h('div', { class: 'notice info', style: { marginTop: '14px' } }, 'Tip: your signatures are remembered on this device so you can reuse them. Asking other people to sign needs the online server (coming in the server edition).'));
     side.append(h('div', { class: 'hint', style: { marginTop: '18px' } }, h('span', { class: 'kbd' }, 'Del'), ' delete · ', h('span', { class: 'kbd' }, 'Ctrl+Z'), ' undo · ', h('span', { class: 'kbd' }, 'Ctrl+D'), ' duplicate · arrows nudge'));
   }
@@ -1254,6 +1489,15 @@ export async function mountEditor(el, file, ctx, modeName = 'edit', opts = {}) {
         h('button', { class: 'btn small', type: 'button', onclick: () => { commit(); p.objs.splice(p.objs.indexOf(o), 1); p.objs.push(o); layoutObjs(p); select({ p, o }); } }, 'To front'),
         h('button', { class: 'btn small', type: 'button', onclick: () => { commit(); p.objs.splice(p.objs.indexOf(o), 1); const at = p.objs.findIndex((q) => !(q.isBg || q.layer === 'Background')); p.objs.splice(Math.max(0, at), 0, o); layoutObjs(p); select({ p, o }); } }, 'To back'),
         h('button', { class: 'btn small', type: 'button', onclick: () => { o.locked = !o.locked; rerender(p, o); drawSide(); } }, o.locked ? '🔒 Unlock' : '🔓 Lock')));
+    if (o.type === 'image' && !o.points) {
+      const fitTo = (cover) => set(() => { const k = (cover ? Math.max : Math.min)(DW() / o.w, DH() / o.h); o.w *= k; o.h *= k; o.x = (DW() - o.w) / 2; o.y = (DH() - o.h) / 2; o.rot = undefined; });
+      const out = b.x < -0.5 || b.y < -0.5 || b.x + b.w > DW() + 0.5 || b.y + b.h > DH() + 0.5;
+      box.append(h('div', { class: 'lbl' }, 'Size on canvas'),
+        ...(out ? [h('p', { class: 'hint', style: { margin: '0 0 6px', color: 'var(--warm)' } }, 'Part of this image is outside the canvas (the darkened area) and will be cut off.')] : []),
+        h('div', { style: { display: 'flex', gap: '6px', flexWrap: 'wrap', marginBottom: '8px' } },
+          h('button', { class: 'btn small', type: 'button', onclick: () => fitTo(false) }, 'Fit inside canvas'),
+          h('button', { class: 'btn small', type: 'button', onclick: () => fitTo(true) }, 'Fill the canvas')));
+    }
     if (!o.points) box.append(row(`Rotate ${o.rot || 0}°`, h('input', { type: 'range', min: -180, max: 180, step: 1, value: o.rot || 0, onchange: (e) => set(() => { o.rot = +e.target.value || undefined; }) })));
     const quick = [...new Set([...(brand.colors || []), ...PALETTE.slice(6, 18)])].slice(0, 16);
     if (o.icon || o.poly || o.iconify || o.type === 'text' || o.type === 'rect' || o.type === 'ellipse' || o.points) {
@@ -1489,6 +1733,13 @@ export async function mountEditor(el, file, ctx, modeName = 'edit', opts = {}) {
     toast(`Resized to ${W2} × ${H2} px.`);
   }
 
+  function saveProjectFile() {
+    const name = stem(opts.name || file.name).replace(/-design$/, '') || 'design';
+    const data = { app: 'EditSupreme', kind: 'design', v: 1, W: DW(), H: DH(), name, sizeId: opts.sizeId, objs: dpage().objs.map(({ ocrBusy, ...o }) => o), groups: dpage().groups };
+    download(new Blob([JSON.stringify(data)], { type: 'application/json' }), name + '.editsupreme.json');
+    toast('Project saved. Open it any time from Design Studio → Open a project file.');
+  }
+
   // Download dialog: picture, print PDF, editable-text PDF, or a project file to keep editing later.
   async function exportDesign() {
     if (editing) finishEditing();
@@ -1511,12 +1762,7 @@ export async function mountEditor(el, file, ctx, modeName = 'edit', opts = {}) {
       { label: 'Cancel', value: null },
       { label: 'Download', primary: true, value: 'download' }
     ]);
-    if (choice === 'project') {
-      const data = { app: 'EditSupreme', kind: 'design', v: 1, W, H, name, sizeId: opts.sizeId, objs: dpage().objs.map(({ ocrBusy, ...o }) => o), groups: dpage().groups };
-      download(new Blob([JSON.stringify(data)], { type: 'application/json' }), name + '.editsupreme.json');
-      toast('Project saved. Open it any time from Design Studio → Open a project file.');
-      return;
-    }
+    if (choice === 'project') { saveProjectFile(); return; }
     if (choice !== 'download') return;
     if (fmt === 'pdf-text') { await save(true); return; }
     status.textContent = 'Preparing your file…';
@@ -1570,8 +1816,25 @@ function groupPanel() {
   // Layers as a tree: groups (nested) with their items, drag rows to reorder or move them into a group.
   function layersPanel() {
     const p = pages[0];
-    const box = h('div', { style: { marginTop: '16px' } }, h('div', { class: 'lbl', style: { fontWeight: 700, fontSize: '13.5px', marginBottom: '6px' } }, `Layers (${p.objs.length})`),
-      h('p', { class: 'hint', style: { margin: '0 0 8px' } }, 'Top of the list is in front. Drag a row up or down to reorder it, or onto a group to put it inside. Shift+click selects several; Ctrl+G groups them.'));
+    const one = sel && sel.o.type !== 'group' ? sel.o : null;
+    const multi = sel?.o?.items, grp = isGroupSel() && sel.o.gid;
+    const tb = (ic, label, fn, on = true, title = label) => h('button', { class: 'btn small', type: 'button', title, disabled: !on, onclick: fn }, ic ? h('span', { html: icon(ic) }) : null, label);
+    const newMenu = h('details', { class: 'newlayer' }, h('summary', { class: 'btn small primary' }, h('span', { html: icon('plus') }), 'New layer'),
+      h('div', { class: 'menu' },
+        h('button', { type: 'button', onclick: () => { newMenu.open = false; commit(); addPaintLayer(p); setTool('brush'); } }, h('b', {}, 'Paint layer'), h('span', {}, 'Empty layer for the Brush')),
+        h('button', { type: 'button', onclick: () => { newMenu.open = false; addFillLayer(p); } }, h('b', {}, 'Fill layer'), h('span', {}, 'A solid colour over the whole canvas')),
+        h('button', { type: 'button', onclick: () => { newMenu.open = false; sideTab = 'props'; setTool('text'); toast('Click on the canvas where the text should go.'); } }, h('b', {}, 'Text layer'), h('span', {}, 'Click on the canvas to type')),
+        h('button', { type: 'button', onclick: async () => { newMenu.open = false; const [f] = await pickFiles('image/*', false); if (f) placeImageFile(f, p); } }, h('b', {}, 'Image layer'), h('span', {}, 'Upload a photo or picture')),
+        h('button', { type: 'button', onclick: () => { newMenu.open = false; const S = DW() * 0.3; addObj({ type: 'rect', layer: 'Shape', w: S, h: S, fill: style.fill, stroke: style.fill, sw: 0, opacity: 100 }); } }, h('b', {}, 'Shape layer'), h('span', {}, 'A rectangle you can recolour'))));
+    const box = h('div', {},
+      h('div', { class: 'layertools' }, newMenu,
+        tb('', 'Group', () => groupItems(p, sel.o.items), !!multi, 'Group the selected layers (Ctrl+G)'),
+        tb('', 'Ungroup', () => ungroup(p, sel.o.gid), !!grp, 'Ungroup (Ctrl+Shift+G)'),
+        tb('', one?.clipBelow ? 'Unclip' : 'Clip', () => toggleClip(p, one), !!one && !one.isBg, 'Clip to the layer below: show only inside it'),
+        tb('', one?.mask ? 'Mask ✓' : 'Mask', () => (one.mask ? (sideTab = 'props', drawSide()) : maskOp(p, one, 'add')), paintable(one), 'Add a layer mask (photos and paint layers)'),
+        tb('copy', '', () => duplicate(), !!sel, 'Duplicate (Ctrl+D)'),
+        tb('trash', '', () => removeSel(), !!sel, 'Delete')),
+      h('p', { class: 'hint', style: { margin: '6px 0 8px' } }, 'Top of the list is in front. Drag rows to reorder, or onto a group to put them inside. Shift+click to select several, then Group. Double-click a row to edit it.'));
     const list = h('div', { class: 'layerlist' });
     const itemOfRow = (row) => (row.dataset.gid ? gproxy(row.dataset.gid) : findObj(p, row.dataset.oid));
     let dragged = null;
@@ -1615,17 +1878,49 @@ function groupPanel() {
       const label = o.type === 'text' ? `“${(o.text || '').slice(0, 24)}${(o.text || '').length > 24 ? '…' : ''}”` : layerName(o);
       const swatch = o.type === 'image' && o.src ? h('img', { src: o.src, alt: '' }) : h('span', { class: 'sw', style: { background: o.type === 'text' ? 'transparent' : o.grad ? gradientCss(o.grad) : o.fill || o.stroke || '#ccc', color: o.color || 'inherit' } }, o.type === 'text' ? 'T' : '');
       const multiOn = sel?.o?.items?.some((it) => it === o);
-      const row = h('div', { class: 'layerrow' + (sel?.o === o || multiOn ? ' on' : '') + (o.hidden ? ' off' : ''), 'data-oid': o.id, style: { paddingLeft: 6 + chain.length * 14 + 'px' },
-        onclick: (e) => { if (e.target.closest('button')) return; if (e.shiftKey && sel) { const cur = sel.o.items ? sel.o.items.slice() : [sel.o]; const at = cur.indexOf(o); if (at >= 0) cur.splice(at, 1); else cur.push(o); select({ p, o: cur.length === 1 ? cur[0] : { type: 'group', items: cur, id: 'multi' } }); return; } select({ p, o }); p.overlay.querySelector(`.obj[data-id="${o.id}"]`)?.scrollIntoView({ block: 'nearest', behavior: 'smooth' }); } },
+      const row = h('div', { class: 'layerrow' + (sel?.o === o || multiOn ? ' on' : '') + (o.hidden ? ' off' : '') + (o.clipBelow ? ' clipped' : ''), 'data-oid': o.id, style: { paddingLeft: 6 + chain.length * 14 + (o.clipBelow ? 14 : 0) + 'px' }, ondblclick: () => { sideTab = 'props'; select({ p, o }); drawToolbar(); },
+        onclick: (e) => { if (e.target.closest('button')) return; if (e.shiftKey && sel) { const cur = sel.o.items ? sel.o.items.slice() : [sel.o]; const at = cur.indexOf(o); if (at >= 0) cur.splice(at, 1); else cur.push(o); select({ p, o: cur.length === 1 ? cur[0] : { type: 'group', items: cur, id: 'multi' } }); return; } select({ p, o }); revealInCanvas(p, o); } },
         h('button', { type: 'button', class: 'lbtn', title: o.hidden ? 'Show' : 'Hide', onclick: () => { commit(); o.hidden = !o.hidden; rerender(p, o); drawSide(); } }, o.hidden ? '🚫' : '👁'),
+        o.clipBelow ? h('span', { class: 'cliparrow', title: 'Clipped to the layer below' }, '↳') : null,
         swatch,
         h('span', { class: 'lname' }, label),
+        o.mask ? h('img', { class: 'maskbadge' + (maskEdit && sel?.o === o ? ' on' : ''), src: o.mask, alt: 'mask', title: 'Layer mask: click to paint on it', onclick: (ev) => { ev.stopPropagation(); select({ p, o }); maskEdit = true; setTool('brush'); } }) : null,
         h('button', { type: 'button', class: 'lbtn', title: o.locked ? 'Unlock' : 'Lock', onclick: () => { o.locked = !o.locked; rerender(p, o); drawSide(); } }, o.locked ? '🔒' : '🔓'));
       bindDrag(row);
       list.append(row);
     }
     box.append(list);
     return box;
+  }
+
+  // Scroll the canvas (not the whole page) so a layer is in view.
+  function revealInCanvas(p, o) {
+    const n = p.overlay.querySelector(`.obj[data-id="${o.id}"]`);
+    if (!n) return;
+    const a = area.getBoundingClientRect(), r = n.getBoundingClientRect();
+    if (r.bottom < a.top || r.top > a.bottom) area.scrollBy({ top: (r.top + r.bottom) / 2 - (a.top + a.bottom) / 2, behavior: 'smooth' });
+  }
+
+  // ---------- new project ----------
+  async function newProject() {
+    if (editing) finishEditing();
+    const used = dpage().objs.some((o) => !(o.isBg || o.layer === 'Background'));
+    if (used) {
+      const c = await modal('Start a new project?', h('p', {}, 'Your current design will be closed. Save it as a project file first if you want to come back to it.'), [
+        { label: 'Cancel', value: null }, { label: 'Save project file first', value: 'save' }, { label: 'Start new', primary: true, value: 'new' }]);
+      if (!c) return;
+      if (c === 'save') saveProjectFile();
+    }
+    const pick = await pickDesignSize({ onTemplates: () => ctx.restart() });
+    if (!pick) return;
+    const { W: W2, H: H2 } = pick;
+    window.removeEventListener('beforeunload', beforeUnload);
+    document.removeEventListener('keydown', onKey);
+    const d = await PDFDocument.create();
+    d.addPage([W2, H2]);
+    const f = new File([await d.save()], pick.name + '.pdf', { type: 'application/pdf' });
+    await mountEditor(el, f, ctx, 'design', { initial: [blankDesign(W2, H2)], groups: {}, name: pick.name, sizeId: pick.sizeId });
+    toast(`New ${W2} × ${H2} px project.`);
   }
 
   // Move a layer (an item or a whole group) above/below another row, or into a group.
@@ -1789,7 +2084,7 @@ function groupPanel() {
       if (items.length) select({ p, o: items.length === 1 ? items[0] : { type: 'group', items, id: 'multi' } });
     }
     else if ((e.key === 'Delete' || e.key === 'Backspace') && sel) { e.preventDefault(); removeSel(); }
-    else if (e.key === 'Escape') { pending = null; select(null); }
+    else if (e.key === 'Escape') { pending = null; if (tool !== mode.start || pending) setTool(mode.start); else select(null); }
     else if (sel && e.key.startsWith('Arrow')) {
       e.preventDefault();
       const d = e.shiftKey ? 10 : 1, { p, o } = sel;
@@ -1800,6 +2095,9 @@ function groupPanel() {
       }
     } else if (!mod && e.key === 'v' && mode.tools.includes('select')) setTool('select');
     else if (!mod && e.key === 't' && mode.tools.includes('text')) setTool('text');
+    else if (!mod && e.key === 'b' && mode.tools.includes('brush')) setTool('brush');
+    else if (!mod && e.key === 'e' && mode.tools.includes('perase')) setTool('perase');
+    else if (!mod && (e.key === '[' || e.key === ']') && (tool === 'brush' || tool === 'perase')) { brush.size = clamp(brush.size + (e.key === ']' ? 5 : -5), 1, 400); drawSide(); }
   };
   document.addEventListener('keydown', onKey);
 
@@ -2033,13 +2331,49 @@ function groupPanel() {
  */
 export async function renderDesign(objs, W, H, scale = 1, bgColor = '#ffffff') {
   await fontsReady(objs);
-  const c = document.createElement('canvas');
-  c.width = Math.round(W * scale); c.height = Math.round(H * scale);
+  const mk = () => { const c = document.createElement('canvas'); c.width = Math.round(W * scale); c.height = Math.round(H * scale); const g = c.getContext('2d'); g.scale(scale, scale); return [c, g]; };
+  const [c, g] = mk();
+  if (bgColor) { g.fillStyle = bgColor; g.fillRect(0, 0, W, H); }
+  for (let i = 0; i < objs.length; i++) {
+    const o = objs[i];
+    if (o.clipBelow && i > 0) continue; // drawn together with the layer it is clipped to
+    // Layers clipped to this one only show where this one is painted.
+    const followers = [];
+    for (let j = i + 1; j < objs.length && objs[j].clipBelow; j++) followers.push(objs[j]);
+    if (!followers.length) { await drawObj(g, o, scale); continue; }
+    if (o.hidden || o.deleted) continue;
+    const [L, gl] = mk();
+    await drawObj(gl, o, scale);
+    for (const f of followers) {
+      if (f.hidden || f.deleted) continue;
+      const [F, gf] = mk();
+      await drawObj(gf, f, scale);
+      gf.setTransform(1, 0, 0, 1, 0, 0);
+      gf.globalCompositeOperation = 'destination-in';
+      gf.drawImage(L, 0, 0);
+      gl.save(); gl.setTransform(1, 0, 0, 1, 0, 0); gl.drawImage(F, 0, 0); gl.restore();
+    }
+    g.save(); g.setTransform(1, 0, 0, 1, 0, 0); g.drawImage(L, 0, 0); g.restore();
+  }
+  return c;
+}
+
+// The picture of an image layer with its mask applied (transparent where the mask is empty).
+async function maskedSrc(o, src) {
+  const img = await loadImage(src), m = await loadImage(o.mask);
+  const c = document.createElement('canvas'); c.width = img.naturalWidth; c.height = img.naturalHeight;
   const g = c.getContext('2d');
-  g.fillStyle = bgColor; g.fillRect(0, 0, c.width, c.height);
-  g.scale(scale, scale);
-  for (const o of objs) {
-    if (o.hidden || o.deleted || o.type === 'redact' || o.type === 'field') continue;
+  g.drawImage(img, 0, 0);
+  g.globalCompositeOperation = 'destination-in';
+  // The mask follows the layer on screen, so a mirrored layer has a mirrored mask too.
+  if (o.flipX) { g.translate(c.width, 0); g.scale(-1, 1); }
+  g.drawImage(m, 0, 0, c.width, c.height);
+  return c.toDataURL('image/png');
+}
+
+async function drawObj(g, o, scale) {
+  {
+    if (o.hidden || o.deleted || o.type === 'redact' || o.type === 'field') return;
     const b = o.points ? null : { x: o.x, y: o.y, w: o.w, h: o.h };
     g.save();
     g.globalAlpha = (o.opacity ?? 100) / 100;
@@ -2059,7 +2393,9 @@ export async function renderDesign(objs, W, H, scale = 1, bgColor = '#ffffff') {
         g.strokeStyle = o.stroke; g.lineWidth = s; g.stroke(p2);
       }
     } else if (o.type === 'image' && o.src) {
-      const img = await loadImage(await bakeImage(o, true));
+      let baked = await bakeImage(o, true);
+      if (o.mask) baked = await maskedSrc(o, baked);
+      const img = await loadImage(baked);
       if (o.clip && o.natW) {
         const poly = clipPolygon(o.clip, b.w, b.h);
         g.beginPath(); poly.forEach(([px, py], k) => (k ? g.lineTo(b.x + px, b.y + py) : g.moveTo(b.x + px, b.y + py))); g.closePath();
@@ -2099,7 +2435,6 @@ export async function renderDesign(objs, W, H, scale = 1, bgColor = '#ffffff') {
     }
     g.restore();
   }
-  return c;
 }
 
 // A text object's CSS font: its Google font (Design Studio) first, then the matching built-in family.
@@ -2119,6 +2454,56 @@ function fontCssOf(o) {
 
 // ---------- clipping masks (picture frames) ----------
 // Shapes are outlines in a 0..1 box, used for the on-screen clip-path and the PDF clipping path alike.
+// Apply (or remove) a CSS mask image on an element.
+function setMask(el, url, size = '100% 100%', pos = '0 0') {
+  const v = url ? `url("${url}")` : '';
+  for (const k of ['maskImage', 'webkitMaskImage']) el.style[k] = v;
+  for (const k of ['maskSize', 'webkitMaskSize']) el.style[k] = url ? size : '';
+  for (const k of ['maskPosition', 'webkitMaskPosition']) el.style[k] = url ? pos : '';
+  for (const k of ['maskRepeat', 'webkitMaskRepeat']) el.style[k] = url ? 'no-repeat' : '';
+}
+
+export const blankDesign = (W, H) => [{ type: 'rect', layer: 'Background', isBg: true, locked: true, x: 0, y: 0, w: W, h: H, fill: '#ffffff', stroke: '#ffffff', sw: 0, opacity: 100 }];
+
+/** Pick a canvas size for a new design: a preset (Instagram, A4…) or a custom size. Resolves {W, H, sizeId, name} or null. */
+export function pickDesignSize({ onTemplates } = {}) {
+  return new Promise((resolve) => {
+    const close = (v) => { bg.remove(); document.removeEventListener('keydown', esc); resolve(v); };
+    const esc = (e) => { if (e.key === 'Escape') close(null); };
+    const slug = (s) => s.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'design';
+    const card = ([id, name, w, hh]) => {
+      const k = 46 / Math.max(w, hh);
+      return h('button', { type: 'button', class: 'sizepick', onclick: () => close({ W: w, H: hh, sizeId: id, name: slug(name) }) },
+        h('span', { class: 'shape', style: { width: w * k + 'px', height: hh * k + 'px' } }), h('b', {}, name), h('span', {}, `${w} × ${hh}`));
+    };
+    const unit = { v: 'px' };
+    const wIn = h('input', { class: 'inp', type: 'number', min: 1, step: 'any', value: 1080 }), hIn = h('input', { class: 'inp', type: 'number', min: 1, step: 'any', value: 1080 });
+    const dpi = h('input', { class: 'inp', type: 'number', min: 30, max: 1200, value: 300, title: 'DPI for cm, mm and inches' });
+    const unitSel = h('select', { class: 'inp', onchange: (e) => { unit.v = e.target.value; dpiWrap.classList.toggle('hidden', unit.v === 'px'); } }, [['px', 'pixels'], ['mm', 'mm'], ['cm', 'cm'], ['in', 'inches']].map(([v, l]) => h('option', { value: v }, l)));
+    const dpiWrap = h('label', { class: 'mini hidden' }, 'DPI', dpi);
+    const err = h('div', { class: 'error' });
+    const create = () => {
+      const per = { px: 1, in: +dpi.value || 300, cm: (+dpi.value || 300) / 2.54, mm: (+dpi.value || 300) / 25.4 }[unit.v];
+      const w = Math.round((+wIn.value || 0) * per), hh = Math.round((+hIn.value || 0) * per);
+      if (w < 16 || hh < 16) { err.textContent = 'Enter a width and height (at least 16 px).'; return; }
+      if (w > 8000 || hh > 8000) { err.textContent = `${w} × ${hh} px is too big; the largest is 8000 px per side.`; return; }
+      close({ W: w, H: hh, name: 'custom-design' });
+    };
+    const bg = h('div', { class: 'modal-bg', onclick: (e) => { if (e.target === bg) close(null); } },
+      h('div', { class: 'modal sizemodal', role: 'dialog', 'aria-label': 'New project' },
+        h('div', { class: 'pvhead' }, h('h3', {}, 'New project: choose a size'), h('span', { class: 'status' }),
+          h('button', { class: 'iconbtn', type: 'button', 'aria-label': 'Close', html: icon('x'), onclick: () => close(null) })),
+        h('div', { class: 'sizebody' },
+          h('div', { class: 'customsize' }, h('b', {}, 'Custom size'),
+            h('div', { class: 'row' }, h('label', { class: 'mini' }, 'Width', wIn), h('span', {}, '×'), h('label', { class: 'mini' }, 'Height', hIn), h('label', { class: 'mini' }, 'Unit', unitSel), dpiWrap,
+              h('button', { class: 'btn primary', type: 'button', onclick: create }, 'Create')), err),
+          ...SIZES.map(([group, list]) => h('div', {}, h('div', { class: 'lbl' }, group), h('div', { class: 'sizepicks' }, ...list.map(card))))),
+        onTemplates ? h('div', { class: 'foot' }, h('button', { class: 'btn ghost', type: 'button', onclick: () => { close(null); onTemplates(); } }, 'Start from a template instead')) : null));
+    document.addEventListener('keydown', esc);
+    document.body.append(bg);
+  });
+}
+
 export const CLIP_SHAPES = [['rect', 'Square'], ['rounded', 'Rounded'], ['ellipse', 'Circle / oval'], ['triangle', 'Triangle'], ['diamond', 'Diamond'], ['hexagon', 'Hexagon'], ['star', 'Star'], ['heart', 'Heart'], ['blob', 'Blob']];
 function clipPolygon(shape, w = 1, h = 1) {
   const ring = (n, f) => Array.from({ length: n }, (_, k) => f((k / n) * Math.PI * 2, k));

@@ -1,7 +1,8 @@
-// Interactive image tools: Crop image, Photo editor, Meme generator and Blur face.
+// Interactive image tools: Crop image, Rotate image, Photo editor, Meme generator and Blur face.
 import { h, toast } from '../lib/ui.js';
 import { stem } from '../lib/core.js';
-import { IMG_ACCEPT, readPicture, savePicture, keepFormat, mapFrames, cropCanvas, newCanvas, svgCrop, svgBlob, encode } from '../lib/imgio.js';
+import { IMG_ACCEPT, readPicture, savePicture, keepFormat, mapFrames, cropCanvas, newCanvas, svgCrop, svgBlob, encode, rotateCanvas, svgRotate, hasAlpha } from '../lib/imgio.js';
+import { icon } from '../lib/icons.js';
 
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 const loading = (el, msg) => el.replaceChildren(h('div', { class: 'panel', style: { textAlign: 'center', padding: '32px' } }, h('p', { class: 'status' }, msg)));
@@ -23,6 +24,196 @@ async function runSave(btn, err, fn, ctx) {
   btn.textContent = 'Working…';
   try { const out = await fn(); ctx.finish(Array.isArray(out) ? out : out.outputs, out.note); }
   catch (e) { console.error(e); err.textContent = e.message || String(e); btn.disabled = false; btn.textContent = old; }
+}
+
+// ---------------- Rotate image (drag with mouse or finger) ----------------
+const norm = (a) => { a = ((a + 180) % 360 + 360) % 360 - 180; return Math.abs(a) < 1e-9 ? 0 : a; };
+const isQuarter = (a) => Math.abs(a / 90 - Math.round(a / 90)) < 1e-6;
+
+// Largest upright rectangle inside a w×h picture turned by `deg` (so no empty corners).
+function innerRect(w, h, deg) {
+  const a = Math.abs(deg) * Math.PI / 180, s = Math.abs(Math.sin(a)), c = Math.abs(Math.cos(a));
+  const long = Math.max(w, h), short = Math.min(w, h);
+  if (short <= 2 * s * c * long || Math.abs(s - c) < 1e-10) {
+    const x = short / 2;
+    return w >= h ? { w: x / s, h: x / c } : { w: x / c, h: x / s };
+  }
+  const c2 = c * c - s * s;
+  return { w: (w * c - h * s) / c2, h: (h * c - w * s) / c2 };
+}
+
+// Size of the result for each corner mode.
+function outSize(w, h, deg, mode) {
+  const a = deg * Math.PI / 180, s = Math.abs(Math.sin(a)), c = Math.abs(Math.cos(a));
+  if (mode === 'crop') { const r = innerRect(w, h, deg); return { w: Math.max(1, Math.floor(r.w)), h: Math.max(1, Math.floor(r.h)) }; }
+  if (mode === 'keep') return { w, h };
+  return { w: Math.ceil(w * c + h * s), h: Math.ceil(w * s + h * c) };
+}
+
+function rotateFree(src, deg, flip, mode, bg) {
+  const { w, h } = outSize(src.width, src.height, deg, mode);
+  const c = newCanvas(w, h), g = c.getContext('2d');
+  if (bg) { g.fillStyle = bg; g.fillRect(0, 0, w, h); }
+  g.imageSmoothingQuality = 'high';
+  g.translate(w / 2, h / 2);
+  g.scale(flip.h ? -1 : 1, flip.v ? -1 : 1);
+  g.rotate(deg * Math.PI / 180);
+  g.drawImage(src, -src.width / 2, -src.height / 2);
+  return c;
+}
+
+async function rotateTool(el, files, ctx) {
+  loading(el, 'Opening the pictures…');
+  let pics;
+  try { pics = []; for (const f of files) pics.push(await readPicture(f)); }
+  catch (e) { el.replaceChildren(h('p', { class: 'error' }, e.message)); return; }
+  const states = pics.map(() => ({ angle: 0, flip: { h: false, v: false } }));
+  let cur = 0, mode = 'expand', bgMode = 'auto', bgColor = '#ffffff', fmt = 'same';
+  const same = pics.length > 1 ? h('input', { type: 'checkbox', checked: true }) : null;
+  const S = () => states[cur];
+  const each = (fn) => (same?.checked ? states : [S()]).forEach(fn);
+
+  // Preview: a downscaled copy turned with CSS, inside a square stage big enough for any angle.
+  const preview = (pic) => {
+    const src = pic.frames[0].canvas, k = Math.min(1, 1000 / Math.max(src.width, src.height));
+    const c = newCanvas(Math.max(1, Math.round(src.width * k)), Math.max(1, Math.round(src.height * k)));
+    c.getContext('2d').drawImage(src, 0, 0, c.width, c.height);
+    c.className = 'rotimg'; c.draggable = false;
+    return c;
+  };
+  let img = preview(pics[0]);
+  const frame = h('div', { class: 'rotframe' });
+  const knob = h('div', { class: 'rotknob', title: 'Drag to rotate', html: icon('rotate') });
+  const ring = h('div', { class: 'rotring' }, knob);
+  const badge = h('div', { class: 'rotbadge' }, '0°');
+  const stage = h('div', { class: 'rotstage', tabindex: 0, 'aria-label': 'Rotation area. Drag to rotate, or use the arrow keys.' }, img, frame, ring, badge);
+
+  const num = h('input', { class: 'inp', type: 'number', step: 'any', min: -180, max: 180, style: { width: '90px' }, oninput: (e) => { set(+e.target.value || 0, false); } });
+  const slider = h('input', { type: 'range', min: -180, max: 180, step: 0.1, value: 0, style: { flex: 1 }, oninput: (e) => set(+e.target.value, true, true) });
+  const btn = (ic, label, fn) => h('button', { class: 'btn small', type: 'button', title: label, onclick: () => { fn(); draw(); } }, h('span', { html: icon(ic) }), label);
+  const quick = h('div', { class: 'rotquick' },
+    btn('undo', '90° left', () => each((s) => { s.angle = norm(s.angle - 90); })),
+    btn('redo', '90° right', () => each((s) => { s.angle = norm(s.angle + 90); })),
+    btn('flip', 'Mirror', () => each((s) => { s.flip.h = !s.flip.h; })),
+    h('button', { class: 'btn small', type: 'button', onclick: () => { each((s) => { s.flip.v = !s.flip.v; }); draw(); } }, h('span', { html: icon('flip'), style: { display: 'inline-grid', rotate: '90deg' } }), 'Upside down'),
+    h('button', { class: 'btn small ghost', type: 'button', onclick: () => { each((s) => { s.angle = 0; s.flip = { h: false, v: false }; }); draw(); } }, 'Reset'));
+  const fine = h('div', { class: 'rotfine' },
+    h('button', { class: 'btn small', type: 'button', onclick: () => nudge(-1) }, '−1°'),
+    h('button', { class: 'btn small', type: 'button', onclick: () => nudge(-0.1) }, '−0.1°'),
+    h('button', { class: 'btn small', type: 'button', onclick: () => nudge(0.1) }, '+0.1°'),
+    h('button', { class: 'btn small', type: 'button', onclick: () => nudge(1) }, '+1°'));
+  const segOf = (opts, val, onpick) => {
+    const s = h('div', { class: 'seg' }, opts.map(([v, l]) => h('button', { type: 'button', class: v === val ? 'on' : '', onclick: (e) => {
+      [...s.children].forEach((b) => b.classList.toggle('on', b === e.currentTarget)); onpick(v); draw();
+    } }, l)));
+    return s;
+  };
+  const corners = h('div', { class: 'field' }, h('div', { class: 'lbl' }, 'Corners (for angles that are not 90°)'),
+    segOf([['expand', 'Show the whole picture'], ['crop', 'Crop the empty corners'], ['keep', 'Keep the original size']], mode, (v) => { mode = v; }));
+  const colorIn = h('input', { type: 'color', value: bgColor, oninput: (e) => { bgColor = e.target.value; draw(); } });
+  const bgField = h('div', { class: 'field' }, h('div', { class: 'lbl' }, 'Empty corners'),
+    segOf([['auto', 'Transparent'], ['color', 'Colour']], bgMode, (v) => { bgMode = v; }), h('div', { style: { marginTop: '8px' } }, colorIn),
+    h('div', { class: 'hint' }, 'JPG pictures can\'t be transparent, so their corners use the colour.'));
+  const fmtField = h('div', { class: 'field' }, h('div', { class: 'lbl' }, 'Save as'),
+    segOf([['same', 'Same format'], ['jpg', 'JPG'], ['png', 'PNG'], ['webp', 'WEBP']], fmt, (v) => { fmt = v; }));
+  const info = h('p', { class: 'status' });
+  const thumbs = pics.length > 1 ? h('div', { class: 'rotthumbs' }, pics.map((p, i) => {
+    const t = preview(p); t.className = '';
+    return h('button', { type: 'button', class: 'rotthumb' + (i === 0 ? ' on' : ''), title: p.name, onclick: (e) => {
+      cur = i; [...thumbs.children].forEach((b) => b.classList.toggle('on', b === e.currentTarget));
+      const n = preview(pics[i]); img.replaceWith(n); img = n; draw();
+    } }, t);
+  })) : null;
+
+  const err = h('div', { class: 'error' });
+  const run = sideButton(pics.length > 1 ? `Rotate ${pics.length} images` : 'Rotate image', () => runSave(run, err, async () => {
+    const out = [];
+    for (let i = 0; i < pics.length; i++) {
+      const p = pics[i], s = same?.checked ? S() : states[i];
+      const a = norm(s.angle), flipName = s.flip.h && s.flip.v ? 'none' : s.flip.h ? 'h' : s.flip.v ? 'v' : 'none';
+      if (!a && !s.flip.h && !s.flip.v) { out.push({ name: p.name, blob: p.file }); continue; }
+      // Exact quarter turns never lose quality (and SVGs stay vectors).
+      if (isQuarter(a)) {
+        const q = s.flip.h && s.flip.v ? a + 180 : a;
+        if (p.kind === 'svg' && fmt === 'same') { out.push({ name: stem(p.name) + '-rotated.svg', blob: svgBlob(svgRotate(p.svg, ((q % 360) + 360) % 360, flipName)) }); continue; }
+        const frames = await mapFrames(p.frames, (c) => rotateCanvas(c, ((q % 360) + 360) % 360, flipName));
+        out.push(...await savePicture(p, frames, fmt === 'same' ? keepFormat(p) : fmt, { quality: 0.95, bg: bgColor }, '-rotated'));
+        continue;
+      }
+      let f = fmt === 'same' ? keepFormat(p) : fmt;
+      if (f === 'gif' && p.frames.length < 2) f = 'png';
+      // Transparent corners need a format that keeps transparency.
+      if (bgMode === 'auto' && mode !== 'crop' && f === 'jpg' && fmt === 'same') f = 'png';
+      const fill = bgMode === 'color' || f === 'jpg' ? bgColor : null;
+      const frames = await mapFrames(p.frames, (c) => rotateFree(c, a, s.flip, mode, fill));
+      out.push(...await savePicture(p, frames, f, { quality: 0.95, bg: bgColor }, '-rotated'));
+    }
+    return out;
+  }, ctx));
+
+  el.replaceChildren(h('div', { class: 'layout' },
+    h('div', { class: 'panel' }, stage, info, thumbs),
+    h('div', { class: 'panel sidepanel' }, h('h3', {}, 'Rotate'),
+      h('div', { class: 'field' }, quick),
+      h('div', { class: 'field' }, h('div', { class: 'lbl' }, 'Angle'), h('div', { class: 'rotangle' }, slider, num), fine,
+        h('div', { class: 'hint' }, 'Drag on the picture to turn it. It snaps to straight angles; hold Shift for 15° steps. Arrow keys turn it by 1°.')),
+      corners, bgField, fmtField,
+      same ? h('div', { class: 'field' }, h('label', { class: 'check' }, same, `Rotate all ${pics.length} images the same way`)) : null,
+      run, err, h('button', { class: 'btn ghost', type: 'button', style: { width: '100%', marginTop: '8px' }, onclick: ctx.restart }, 'Choose other images'))));
+
+  function nudge(d) { set(S().angle + d); }
+  function set(a, updateSlider = true, fromSlider = false) {
+    each((s) => { s.angle = norm(a); });
+    draw(updateSlider, !fromSlider);
+  }
+  function draw(updateSlider = true, updateNum = true) {
+    const s = S(), p = pics[cur], W = p.frames[0].canvas.width, H = p.frames[0].canvas.height;
+    const a = s.angle, D = Math.hypot(W, H);
+    // The stage is a square as wide as the picture's diagonal, so every angle fits.
+    img.style.width = (W / D * 100) + '%';
+    img.style.transform = `translate(-50%, -50%) scale(${s.flip.h ? -1 : 1}, ${s.flip.v ? -1 : 1}) rotate(${a}deg)`;
+    const quarter = isQuarter(a);
+    const o = quarter ? (Math.abs(Math.round(a / 90)) % 2 ? { w: H, h: W } : { w: W, h: H }) : outSize(W, H, a, mode);
+    Object.assign(frame.style, { width: (o.w / D * 100) + '%', height: (o.h / D * 100) + '%' });
+    frame.classList.toggle('hidden', quarter || mode === 'expand');
+    ring.style.transform = `rotate(${a}deg)`;
+    badge.textContent = (Math.round(a * 10) / 10) + '°';
+    if (updateSlider) slider.value = a;
+    if (updateNum) num.value = Math.round(a * 10) / 10;
+    corners.classList.toggle('dim', quarter);
+    bgField.classList.toggle('hidden', quarter || mode === 'crop');
+    colorIn.parentElement.classList.toggle('hidden', bgMode !== 'color');
+    info.textContent = `${p.name} · ${W} × ${H} px → ${o.w} × ${o.h} px${s.flip.h ? ' · mirrored' : ''}${s.flip.v ? ' · upside down' : ''}${p.frames.length > 1 ? ` · all ${p.frames.length} frames` : ''}`;
+  }
+
+  // Drag anywhere on the stage: the picture follows the pointer around its centre.
+  let drag = null;
+  const angleAt = (e) => { const r = stage.getBoundingClientRect(); return Math.atan2(e.clientY - (r.top + r.height / 2), e.clientX - (r.left + r.width / 2)) * 180 / Math.PI; };
+  stage.addEventListener('pointerdown', (e) => {
+    if (e.button > 0) return;
+    drag = { a0: S().angle, p0: angleAt(e) };
+    stage.setPointerCapture(e.pointerId);
+    stage.classList.add('dragging');
+    e.preventDefault();
+  });
+  stage.addEventListener('pointermove', (e) => {
+    if (!drag) return;
+    let d = angleAt(e) - drag.p0;
+    // Mirroring one way reverses the turning direction on screen.
+    if (S().flip.h !== S().flip.v) d = -d;
+    let a = drag.a0 + d;
+    if (e.shiftKey) a = Math.round(a / 15) * 15;
+    else { const q = Math.round(a / 90) * 90; if (Math.abs(a - q) < 2.5) a = q; }
+    set(a);
+  });
+  const end = () => { drag = null; stage.classList.remove('dragging'); };
+  stage.addEventListener('pointerup', end);
+  stage.addEventListener('pointercancel', end);
+  stage.addEventListener('keydown', (e) => {
+    const d = { ArrowLeft: -1, ArrowDown: -1, ArrowRight: 1, ArrowUp: 1 }[e.key];
+    if (d) { e.preventDefault(); nudge(d * (e.shiftKey ? 15 : 1)); }
+  });
+  draw();
 }
 
 // ---------------- Crop image ----------------
@@ -392,7 +583,8 @@ async function blurTool(el, files, ctx) {
 
 export const tools = {
   'crop-image': { accept: IMG_ACCEPT, multiple: true, label: 'Select images', mount: cropTool },
-  'photo-editor': { accept: IMG_ACCEPT, multiple: false, label: 'Select a photo', mount: photoEditor },
-  'meme-generator': { accept: IMG_ACCEPT, multiple: false, label: 'Select a picture for your meme', mount: memeTool },
+  'rotate-image': { accept: IMG_ACCEPT, multiple: true, label: 'Select images', mount: rotateTool },
+  'photo-editor': { accept: IMG_ACCEPT, multiple: false, label: 'Select a photo', stock: true, mount: photoEditor },
+  'meme-generator': { accept: IMG_ACCEPT, multiple: false, label: 'Select a picture for your meme', stock: true, mount: memeTool },
   'blur-face': { accept: IMG_ACCEPT, multiple: false, label: 'Select a photo', mount: blurTool }
 };

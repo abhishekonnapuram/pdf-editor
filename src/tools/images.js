@@ -96,7 +96,7 @@ async function getSegmenter(kind, onStatus) {
 }
 
 /** Alpha mask (canvas, white = keep) for a picture. Simple mode: flood-fill the plain colour touching the edges. */
-async function cutoutMask(canvas, mode, onStatus) {
+export async function cutoutMask(canvas, mode, onStatus) {
   const W = canvas.width, H = canvas.height;
   if (mode === 'simple') return solidBackgroundMask(canvas);
   const seg = await getSegmenter(mode, onStatus);
@@ -151,7 +151,7 @@ function solidBackgroundMask(canvas) {
   return m;
 }
 
-function applyMask(canvas, mask, o) {
+export function applyMask(canvas, mask, o) {
   const W = canvas.width, H = canvas.height;
   const cut = newCanvas(W, H), cg = cut.getContext('2d');
   cg.drawImage(canvas, 0, 0);
@@ -408,7 +408,7 @@ export const tools = {
         hint: 'Anything: products, animals, people and objects (44 MB AI model, downloaded once; about 15 s per picture). People: faster portrait cut-out (7 MB). Plain background: instant, for logos and pictures on one colour.' },
       { key: 'bg', label: 'New background', type: 'seg', default: 'transparent', options: [['transparent', 'None'], ['color', 'Colour'], ['blur', 'Blurred'], ['image', 'Picture']] },
       { key: 'color', label: 'Colour', type: 'color', default: '#ffffff', showIf: (v) => v.bg === 'color' },
-      { key: 'bgFile', label: 'Background picture', type: 'file', accept: 'image/*', stockHint: 'beach', showIf: (v) => v.bg === 'image' },
+      { key: 'bgFile', label: 'Background picture', type: 'file', accept: 'image/*', stock: true, stockHint: 'beach', showIf: (v) => v.bg === 'image' },
       { key: 'trim', label: 'Trim empty edges', type: 'checkbox', default: false, showIf: (v) => v.bg === 'transparent' },
       { key: 'format', label: 'Save as', type: 'seg', default: 'png', options: [['png', 'PNG'], ['webp', 'WEBP'], ['jpg', 'JPG']], hint: 'JPG cannot be transparent: a white background is used.' }
     ],
@@ -460,26 +460,6 @@ export const tools = {
         const frames = await mapFrames(pic.frames, (c) => drawWatermark(copyOf(c), o, mark));
         return savePicture(pic, frames, outFormat(pic, o), { quality: 0.93 }, '-watermarked');
       });
-    }
-  },
-
-  'rotate-image': {
-    accept: IMG_ACCEPT, multiple: true, label: 'Select images', runLabel: 'Rotate images',
-    options: [
-      { key: 'angle', label: 'Rotate', type: 'seg', default: '90', options: [['90', '90° right'], ['180', '180°'], ['270', '90° left'], ['0', 'None']] },
-      { key: 'flip', label: 'Flip', type: 'seg', default: 'none', options: [['none', 'No'], ['h', 'Mirror'], ['v', 'Upside down']] },
-      { key: 'only', label: 'Rotate', type: 'select', default: 'all', options: [['all', 'Every image'], ['landscape', 'Only landscape images'], ['portrait', 'Only portrait images']] }
-    ],
-    async process(files, o, ctx) {
-      let skipped = 0;
-      const outputs = await eachPicture(files, ctx, async (pic) => {
-        const c0 = pic.frames[0].canvas, land = c0.width > c0.height;
-        if ((o.only === 'landscape' && !land) || (o.only === 'portrait' && (land || c0.width === c0.height))) { skipped++; return [{ name: pic.name, blob: pic.file }]; }
-        if (pic.kind === 'svg') return [{ name: stem(pic.name) + '.svg', blob: svgBlob(svgRotate(pic.svg, +o.angle, o.flip)) }];
-        const frames = await mapFrames(pic.frames, (c) => rotateCanvas(c, +o.angle, o.flip));
-        return savePicture(pic, frames, keepFormat(pic), { quality: 0.95 });
-      });
-      return { outputs, note: skipped ? `${skipped} image${skipped > 1 ? 's' : ''} ${skipped > 1 ? 'were' : 'was'} not ${o.only} and ${skipped > 1 ? 'were' : 'was'} left as ${skipped > 1 ? 'they were' : 'it was'}.` : null };
     }
   },
 

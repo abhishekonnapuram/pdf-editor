@@ -1,6 +1,7 @@
 // Tool catalogue. Implementations are code-split and loaded when a tool is opened.
 export const CATEGORIES = [
   ['all', 'All'],
+  ['ai', 'AI tools'],
   ['design', 'Design Studio'],
   ['image', 'Image tools'],
   ['photo', 'Creative apps'],
@@ -15,7 +16,7 @@ export const CATEGORIES = [
 
 export const CAT_COLOR = {
   organize: 'var(--c-organize)', optimize: 'var(--c-optimize)', convert: 'var(--c-convert)',
-  edit: 'var(--c-edit)', security: 'var(--c-security)', intel: 'var(--c-intel)', workflows: 'var(--c-flow)', design: 'var(--c-design)', image: 'var(--c-image)', photo: 'var(--c-photo)'
+  edit: 'var(--c-edit)', ai: 'var(--c-ai)', security: 'var(--c-security)', intel: 'var(--c-intel)', workflows: 'var(--c-flow)', design: 'var(--c-design)', image: 'var(--c-image)', photo: 'var(--c-photo)'
 };
 
 const mods = {
@@ -32,12 +33,18 @@ const mods = {
   pdfa: () => import('./pdfa.js'),
   translate: () => import('./translate.js'),
   images: () => import('./images.js'),
-  imagestudio: () => import('./imagestudio.js')
+  imagestudio: () => import('./imagestudio.js'),
+  aitools: () => import('./aitools.js'),
+  assistant: () => import('./assistant.js')
 };
 
 const T = (id, name, desc, cat, icon, mod, extra = {}) => ({ id, name, desc, cat, icon, mod, ...extra });
 
 export const TOOLS = [
+  T('assistant', 'AI Assistant', 'Type or say what you want ("compress this PDF under 1 MB", "remove the background and make it white, then resize to 600 x 600") and it runs the right tools on your files.', 'ai', 'mic', 'assistant', { tag: 'New' }),
+  T('passport-photo', 'Passport photo', 'Passport, visa and ID photos for India, USA, UK, Schengen, Canada and more: AI finds your face, replaces the background and sizes your head to the rules, with a print sheet.', 'ai', 'passport', 'aitools', { tag: 'New' }),
+  T('audio-to-text', 'Audio to text', 'Turn speech in audio and video files into text or subtitles (SRT, VTT) in 20+ languages, with Whisper AI on your device.', 'ai', 'wave', 'aitools', { tag: 'New' }),
+  T('chat-pdf', 'Chat with PDF', 'Ask questions about a PDF by typing or speaking, and get the answer with the page it comes from.', 'ai', 'chat', 'aitools', { tag: 'New' }),
   T('creative-apps', 'Creative apps', 'Full creative apps in your browser: photo editing, vector art, RAW photo developing, video editing, motion graphics, audio and PDFs.', 'photo', 'grid', 'crafts', { tag: 'New' }),
   T('photo-studio', 'Photo Studio', 'PhotoCraft, the full photo editor: layers, masks, adjustment layers, filters, layer styles, type, vectors, brushes and PSD files.', 'photo', 'image', 'crafts', { tag: 'New' }),
   T('vectorcraft', 'VectorCraft', 'Vector art in your browser: logos, illustrations and icons with paths, shapes, gradients and type.', 'photo', 'pen', 'crafts', { tag: 'New' }),
@@ -57,7 +64,7 @@ export const TOOLS = [
   T('remove-background', 'Remove background', 'Cut out people, products and objects from their background automatically, with on-device AI.', 'image', 'cutout', 'images', { tag: 'New' }),
   T('watermark-image', 'Watermark image', 'Stamp text or a logo over your images, with font, transparency, rotation and position, or as a mosaic.', 'image', 'stamp', 'images'),
   T('meme-generator', 'Meme generator', 'Make a meme from your own picture: top and bottom text, captions, any font.', 'image', 'smile', 'imagestudio'),
-  T('rotate-image', 'Rotate image', 'Rotate or mirror many JPG, PNG and GIF images at once, or only the landscape or portrait ones.', 'image', 'rotate', 'images'),
+  T('rotate-image', 'Rotate image', 'Turn pictures to any angle by dragging with your mouse or finger, or by 90°; mirror and flip too.', 'image', 'rotate', 'imagestudio'),
   T('html-to-image', 'HTML to image', 'Turn a web page or HTML into a JPG, PNG or SVG picture.', 'image', 'html', 'images'),
   T('blur-face', 'Blur face', 'Blur faces in photos automatically, and hide licence plates or other private details.', 'image', 'face', 'imagestudio', { tag: 'New' }),
   T('merge', 'Merge PDF', 'Combine PDFs in the order you want. Drag to reorder before merging.', 'organize', 'merge', 'simple'),

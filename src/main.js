@@ -24,12 +24,28 @@ if ('launchQueue' in window) {
   });
 }
 
-const NAV = () => [
-  ...['merge', 'split', 'compress', 'edit', 'sign', 'ocr'].map((id) => ['#/tool/' + id, toolById(id).name.replace(' PDF', ''), '']),
-  ['#/tool/design-studio', 'Design Studio', 'navhot'],
-  ['#/tool/photo-studio', 'Photo Studio', 'navhot'],
-  ['#/tool/creative-apps', 'Creative apps', 'navhot'],
-  ['#/', 'All tools', '']];
+// Four easy groups so people can find a tool: PDF, image, editing & design, AI.
+const PDF_CATS = ['organize', 'optimize', 'convert', 'edit', 'security', 'intel', 'workflows'];
+const AI_POWERED = ['remove-background', 'upscale-image', 'blur-face', 'ocr', 'translate', 'summarize', 'font-finder', 'image-hd', 'screenshot-to-template', 'image-to-layers', 'image-to-editable'];
+const EDITING = ['edit', 'photo-editor', 'edit-images', 'sign', 'meme-generator', 'crop-image', 'redact', 'forms'];
+const GROUPS = [
+  { id: 'pdf', name: 'PDF tools', icon: 'page', color: 'var(--c-convert)', blurb: 'Merge, split, compress, convert, protect', has: (t) => PDF_CATS.includes(t.cat) && !t.server },
+  { id: 'image', name: 'Image tools', icon: 'image', color: 'var(--c-image)', blurb: 'Compress, resize, crop, convert, remove background', has: (t) => t.cat === 'image' },
+  { id: 'design', name: 'Edit & Design', icon: 'pen', color: 'var(--c-design)', blurb: 'Edit PDFs and photos, design posts, creative apps', has: (t) => t.cat === 'design' || t.cat === 'photo' || EDITING.includes(t.id) },
+  { id: 'ai', name: 'AI tools', icon: 'ai', color: 'var(--c-ai)', blurb: 'AI assistant, passport photos, speech to text, chat with PDF', has: (t) => t.cat === 'ai' || AI_POWERED.includes(t.id) }
+];
+const groupTools = (g) => TOOLS.filter(g.has);
+const catName = (id) => (CATEGORIES.find((c) => c[0] === id) || [id, id])[1];
+
+/** The list of tools inside a menu: PDF tools are shown in columns by kind, the others as one list. */
+function menuList(g, onPick) {
+  const link = (t) => h('a', { href: '#/tool/' + t.id, onclick: onPick, style: { '--tc': CAT_COLOR[t.cat] } }, h('span', { class: 'mi', html: icon(t.icon) }), t.name);
+  if (g.id === 'pdf') return h('div', { class: 'megacols' }, PDF_CATS.map((c) => {
+    const ts = TOOLS.filter((t) => t.cat === c && !t.server);
+    return ts.length ? h('div', { class: 'megacol' }, h('div', { class: 'megah' }, catName(c)), ts.map(link)) : null;
+  }));
+  return h('div', { class: 'megalist' }, groupTools(g).map(link));
+}
 
 // ---------- light / dark ----------
 const THEME_KEY = 'editsupreme.theme';
@@ -65,14 +81,27 @@ function openMenu() {
       h('div', { class: 'drawer-head' },
         h('img', { src: './logo.png', alt: 'EditSupreme', height: 40 }),
         h('button', { class: 'iconbtn', type: 'button', 'aria-label': 'Close menu', html: icon('x'), onclick: close })),
-      NAV().map(([href, label, cls]) => h('a', { href, class: cls, onclick: close }, label))));
+      h('a', { href: '#/tool/assistant', class: 'navhot', onclick: close }, 'AI Assistant'),
+      GROUPS.map((g) => h('details', { class: 'drawgroup' }, h('summary', {}, h('span', { class: 'mi', style: { '--tc': g.color }, html: icon(g.icon) }), g.name, h('span', { class: 'cnt' }, groupTools(g).length)), menuList(g, close))),
+      h('a', { href: '#/', onclick: close }, 'All tools')));
   document.addEventListener('keydown', esc);
   document.body.append(bg);
   bg.querySelector('a')?.focus();
 }
 
 function header() {
-  const nav = h('nav', { class: 'topnav' }, NAV().map(([href, label, cls]) => h('a', { href, class: cls || null }, label)));
+  const closeAll = () => nav.querySelectorAll('.navgroup.open').forEach((n) => n.classList.remove('open'));
+  const nav = h('nav', { class: 'topnav' },
+    GROUPS.map((g) => {
+      const box = h('div', { class: 'navgroup' },
+        h('button', { type: 'button', class: 'navbtn', 'aria-haspopup': 'true', onclick: (e) => { const was = box.classList.contains('open'); closeAll(); box.classList.toggle('open', !was); e.stopPropagation(); } }, g.name, h('span', { class: 'car', html: icon('down') })),
+        h('div', { class: 'mega' + (g.id === 'pdf' ? ' wide' : '') }, h('div', { class: 'megatitle' }, g.name, h('a', { href: '#/', onclick: () => { filter = 'g:' + g.id; closeAll(); if (!/^#\/tool\//.test(location.hash)) route(); setTimeout(() => document.getElementById('tools')?.scrollIntoView({ behavior: 'smooth' }), 300); } }, 'See all ' + groupTools(g).length + ' →')), menuList(g, closeAll)));
+      return box;
+    }),
+    h('a', { href: '#/tool/assistant', class: 'navhot' }, 'AI Assistant'),
+    h('a', { href: '#/' }, 'All tools'));
+  document.addEventListener('click', (e) => { if (!nav.contains(e.target)) closeAll(); });
+  document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeAll(); });
   return h('header', { class: 'topbar' },
     h('button', { class: 'iconbtn menubtn', type: 'button', 'aria-label': 'Open menu', html: icon('menu'), onclick: openMenu }),
     h('a', { class: 'brand', href: '#/', 'aria-label': 'EditSupreme home' }, h('img', { src: './logo.png', alt: 'EditSupreme', width: 116, height: 44 })),
@@ -102,18 +131,29 @@ function toolCard(t) {
 
 function home() {
   const grid = h('div', { class: 'grid' });
+  const inFilter = (t) => filter === 'all' || (filter.startsWith('g:') ? GROUPS.find((g) => 'g:' + g.id === filter)?.has(t) : t.cat === filter);
   const draw = () => {
     const q = query.toLowerCase();
+    drawChips();
     grid.replaceChildren(...TOOLS
-      .filter((t) => filter === 'all' || t.cat === filter)
+      .filter((t) => !q || inFilter(t))
+      .filter((t) => q || inFilter(t))
       .filter((t) => !q || (t.name + ' ' + t.desc).toLowerCase().includes(q))
       .map(toolCard));
     if (!grid.children.length) grid.append(h('p', { class: 'status' }, 'No tools match that search.'));
   };
-  const chips = h('div', { class: 'filters' }, CATEGORIES.map(([id, label]) =>
-    h('button', { class: 'chip' + (filter === id ? ' on' : ''), type: 'button', onclick: (e) => {
-      filter = id; [...chips.children].forEach((c) => c.classList.toggle('on', c === e.currentTarget)); draw();
-    } }, label)));
+  // Row 1: All + the four groups. Row 2 (PDF only): the kinds of PDF tool.
+  const chips = h('div', { class: 'filters' });
+  const sub = h('div', { class: 'filters sub' });
+  const chip = (id, label, on) => h('button', { class: 'chip' + (on ? ' on' : ''), type: 'button', onclick: () => { filter = id; draw(); } }, label);
+  function drawChips() {
+    const inPdf = filter === 'g:pdf' || PDF_CATS.includes(filter);
+    chips.replaceChildren(chip('all', 'All tools', filter === 'all'), ...GROUPS.map((g) => chip('g:' + g.id, g.name, filter === 'g:' + g.id || (g.id === 'pdf' && inPdf))));
+    sub.replaceChildren(...(inPdf ? [chip('g:pdf', 'All PDF tools', filter === 'g:pdf'), ...PDF_CATS.map((c) => chip(c, catName(c), filter === c))] : []));
+    sub.hidden = !inPdf;
+  }
+  const finder = h('div', { class: 'finder' }, GROUPS.map((g) => h('button', { type: 'button', class: 'findtile', style: { '--tc': g.color }, onclick: () => { filter = 'g:' + g.id; query = ''; const s = document.querySelector('.search input'); if (s) s.value = ''; draw(); document.getElementById('tools')?.scrollIntoView({ behavior: 'smooth' }); } },
+    h('span', { class: 'ticon', html: icon(g.icon) }), h('span', { class: 'ft' }, h('b', {}, g.name), h('span', {}, g.blurb)), h('span', { class: 'fc' }, groupTools(g).length + ' tools →'))));
   draw();
   const isStandalone = matchMedia('(display-mode: standalone)').matches;
   return h('main', {},
@@ -121,8 +161,8 @@ function home() {
       h('div', { class: 'heroart', 'aria-hidden': 'true' }, FLOATERS.map(([ic, cat], i) => h('span', { class: 'floater f' + i, style: { '--tc': CAT_COLOR[cat] }, html: icon(ic) }))),
       h('div', { class: 'wrap hero' },
       h('span', { class: 'eyebrow' }, h('span', { class: 'dot' }), 'Free · No sign-up · Private'),
-      h('h1', {}, 'Every PDF tool you need, ', h('span', { class: 'grad' }, 'on every device')),
-      h('p', {}, `${TOOLS.filter((t) => !t.server).length} tools to merge, split, compress, convert, edit, sign, secure and understand PDFs, plus image tools and creative apps. Your files are processed on your own device and never uploaded.`),
+      h('h1', {}, 'Every PDF, Image & Design Tool You Need, ', h('span', { class: 'grad' }, 'Right in Your Browser')),
+      h('p', {}, `${TOOLS.filter((t) => !t.server).length} free tools for PDFs, pictures, design and AI, on your phone, tablet or computer. Your files are processed on your own device and never uploaded.`),
       h('div', { class: 'cta' },
         h('a', { class: 'btn primary big', href: '#tools', onclick: (e) => { e.preventDefault(); document.getElementById('tools')?.scrollIntoView({ behavior: 'smooth' }); } }, 'Browse all tools'),
         h('a', { class: 'btn big glass', href: '#/tool/design-studio' }, h('span', { html: icon('image') }), 'Open Design Studio')),
@@ -136,7 +176,8 @@ function home() {
         stat('0', 'files uploaded'),
         stat('100%', 'free'),
         stat('Offline', 'after first visit')))),
-    h('section', { class: 'wrap', id: 'tools' }, chips, grid),
+    h('section', { class: 'wrap findwrap' }, h('h2', {}, 'What do you want to work on?'), finder),
+    h('section', { class: 'wrap', id: 'tools' }, chips, sub, grid),
     h('section', { class: 'wrap section' },
       h('h2', {}, 'Work your way'),
       h('div', { class: 'features' },
@@ -184,15 +225,27 @@ async function toolPage(id) {
   let impl;
   try { impl = await loadTool(meta); } catch (e) { body.replaceChildren(h('p', { class: 'error' }, 'Could not load this tool. ' + e.message)); return main; }
 
-  const ctxBase = { meta, toast };
-  const NON_PDF_INPUT = ['creative-apps', 'vectorcraft', 'lightcraft', 'filmcraft', 'effectcraft', 'soundcraft', 'pdfcraft', 'photo-studio', 'font-finder', 'design-studio', 'image-hd', 'word-to-pdf', 'ppt-to-pdf', 'excel-to-pdf', 'html-to-pdf', 'jpg-to-pdf', 'scan', 'workflow'];
+  const ctxBase = { meta, toast, openTool: (tid, files) => { handoff = files; go('#/tool/' + tid); } };
+  // The page has work on it once the visitor has done something past the "choose a file" screen.
+  let touched = false, downloaded = false;
+  for (const ev of ['pointerdown', 'keydown', 'drop', 'input']) body.addEventListener(ev, () => { touched = true; }, true);
+  body.addEventListener('click', (e) => { if (/download|share/i.test(e.target.closest('button')?.textContent || '')) downloaded = true; }, true);
+  leaveGuard = () => {
+    if (!touched || !document.body.contains(body)) return false;
+    const first = body.firstElementChild;
+    if (!first || first.classList.contains('drop')) return false;
+    if (first.classList.contains('result')) return !downloaded;
+    return true;
+  };
+  const NON_PDF_INPUT = ['creative-apps', 'vectorcraft', 'lightcraft', 'filmcraft', 'effectcraft', 'soundcraft', 'pdfcraft', 'photo-studio', 'font-finder', 'design-studio', 'image-hd', 'word-to-pdf', 'ppt-to-pdf', 'excel-to-pdf', 'html-to-pdf', 'jpg-to-pdf', 'scan', 'workflow', 'assistant', 'passport-photo', 'audio-to-text'];
   const imgTools = TOOLS.filter((t) => (t.cat === 'image' && t.id !== 'html-to-image' && t.id !== id) || t.id === 'jpg-to-pdf');
   const tools = TOOLS.filter((t) => !t.server && t.id !== id && !NON_PDF_INPUT.includes(t.id) && t.cat !== 'image');
   const finish = (outputs, note) => {
+    downloaded = false;
     body.replaceChildren(resultView(outputs, {
       note, tools, imgTools,
       onRestart: () => start([]),
-      onChain: (tid, files) => { handoff = files; location.hash = '#/tool/' + tid; }
+      onChain: (tid, files) => { handoff = files; go('#/tool/' + tid); }
     }));
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
@@ -200,9 +253,9 @@ async function toolPage(id) {
   function start(files) {
     body.replaceChildren();
     if (impl.server) { body.append(impl.render()); return; }
-    if (impl.standalone) { impl.mount(body, { ...ctxBase, finish }); return; }
+    if (impl.standalone) { impl.mount(body, { ...ctxBase, finish, files }); return; }
     if (!files.length && !impl.optionalFiles) {
-      body.append(dropzone({ accept: impl.accept, multiple: impl.multiple, label: impl.label || 'Select files', capture: impl.capture, onFiles: (f) => start(f) }),
+      body.append(dropzone({ accept: impl.accept, multiple: impl.multiple, label: impl.label || 'Select files', capture: impl.capture, stock: impl.stock, onFiles: (f) => start(f) }),
         h('p', { class: 'privacy' }, 'Files are processed on this device and never uploaded.'));
       return;
     }
@@ -258,6 +311,33 @@ async function toolPage(id) {
   return main;
 }
 
+// Floating "Ask AI" button on every page except the assistant itself.
+function aiFab() {
+  return h('button', { type: 'button', class: 'aifab', title: 'AI Assistant: tell it what to do with your files', 'aria-label': 'Open the AI Assistant', onclick: openAssistant },
+    h('span', { html: icon('mic') }), h('span', { class: 'lbl' }, 'Ask AI'));
+}
+
+// The assistant as a panel at the side. The page underneath (and any work on it) stays exactly as it was.
+let aiDock = null;
+function openAssistant() {
+  if (aiDock) { aiDock.el.classList.add('open'); aiDock.api?.focus(); return; }
+  const meta = toolById('assistant');
+  const body = h('div', { class: 'aidock-body' }, h('p', { class: 'status' }, 'Loading the assistant…'));
+  const close = () => el.classList.remove('open');
+  const el = h('aside', { class: 'aidock open', 'aria-label': 'AI Assistant' },
+    h('div', { class: 'aidock-head' }, h('div', { class: 'aibadge', html: icon('ai') }),
+      h('div', { class: 't' }, h('strong', {}, 'AI Assistant'), h('span', { class: 'hint' }, 'Your page stays open behind this panel')),
+      h('button', { class: 'iconbtn', type: 'button', title: 'Close (Esc)', 'aria-label': 'Close the assistant', html: icon('x'), onclick: close })),
+    body);
+  el.addEventListener('keydown', (e) => { if (e.key === 'Escape') close(); });
+  document.body.append(el);
+  aiDock = { el, close };
+  loadTool(meta).then((impl) => {
+    aiDock.api = impl.mount(body, { meta, toast, docked: true, files: [], openTool: (tid, files) => { handoff = files; location.hash = '#/tool/' + tid; } });
+    aiDock.api?.focus();
+  }).catch((e) => body.replaceChildren(h('p', { class: 'error' }, 'Could not load the assistant. ' + e.message)));
+}
+
 async function route() {
   const m = location.hash.match(/^#\/tool\/([\w-]+)/);
   app.replaceChildren(header());
@@ -265,12 +345,26 @@ async function route() {
   if (m) {
     const page = await toolPage(m[1]);
     app.append(page);
+    if (m[1] !== 'assistant') app.append(aiFab());
   } else {
     document.title = 'EditSupreme – Your Complete PDF Editing Solution';
-    app.append(home());
+    app.append(home(), aiFab());
   }
   window.scrollTo(0, 0);
 }
 
-window.addEventListener('hashchange', route);
+// Leaving a page with work on it (link, back button, closing the tab) asks first.
+let leaveGuard = null, allowNav = false, lastHash = location.hash;
+function go(hash) { allowNav = true; location.hash = hash; }
+window.addEventListener('beforeunload', (e) => { if (leaveGuard?.()) { e.preventDefault(); e.returnValue = ''; } });
+window.addEventListener('hashchange', () => {
+  if (!allowNav && leaveGuard?.() && !confirm('Leave this page? Work you have not downloaded or saved here will be lost.')) {
+    handoff = null;
+    history.replaceState(null, '', location.href.split('#')[0] + (lastHash || '#/'));
+    return;
+  }
+  allowNav = false; lastHash = location.hash; leaveGuard = null;
+  if (aiDock && /^#\/tool\/assistant/.test(location.hash)) aiDock.close();
+  route();
+});
 route();

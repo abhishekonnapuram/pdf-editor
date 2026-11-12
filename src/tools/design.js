@@ -65,6 +65,11 @@ async function studioHome(el, ctx) {
   el.replaceChildren(h('div', { class: 'studio' },
     h('p', { class: 'status', style: { marginTop: 0 } }, 'Make social posts, ads, thumbnails, banners, posters and cards. Everything stays on your device.'),
     h('div', { class: 'startrow' },
+      card('plus', 'New blank project', 'Pick a size (Instagram post, story, A4, YouTube thumbnail…) or type your own, then start with an empty canvas.', async () => {
+        const { pickDesignSize, blankDesign } = await import('./editor.js');
+        const pick = await pickDesignSize({ onTemplates: () => tplGrid.scrollIntoView({ behavior: 'smooth' }) });
+        if (pick) openDesign(el, ctx, { W: pick.W, H: pick.H, objs: blankDesign(pick.W, pick.H), name: pick.name, sizeId: pick.sizeId });
+      }),
       draft ? card('edit', 'Continue your last design', `${Math.round(draft.W)} × ${Math.round(draft.H)} px, saved ${new Date(draft.savedAt).toLocaleString()}`, () => openDesign(el, ctx, draft)) : null,
       card('organize', 'Start from a picture', 'Upload any design; it is split into editable layers (text, photos, shapes, graphics) with matching Google fonts.', () => fromPicture('auto')),
       card('scan', 'Recreate a screenshot as a template', 'Low-resolution screenshot or snapshot of a design? It is rebuilt sharp in high resolution, as editable layers.', () => fromPicture('always')),
