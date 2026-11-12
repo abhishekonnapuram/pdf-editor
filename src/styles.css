@@ -746,3 +746,12 @@ img, canvas { display: block; }
 .bubble.me.files .filecard { padding-right: 6px; }
 .bubble .examples { margin-top: 8px; }
 .chip.on { color: #fff; }
+
+/* Result screen: back to the editor */
+.result { position: relative; }
+.result .backedit { position: absolute; top: 16px; left: 16px; display: inline-flex; align-items: center; gap: 6px; font-weight: 700; }
+.result .backedit svg, .result .chain .btn svg { width: 16px; height: 16px; }
+@media (max-width: 560px) { .result .backedit { position: static; margin: 0 auto 10px; } }
+
+/* Room for the floating Ask AI button */
+main.wrap { padding-bottom: 84px; }

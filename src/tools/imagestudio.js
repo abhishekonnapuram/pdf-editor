@@ -22,7 +22,7 @@ async function runSave(btn, err, fn, ctx) {
   btn.disabled = true;
   const old = btn.textContent;
   btn.textContent = 'Working…';
-  try { const out = await fn(); ctx.finish(Array.isArray(out) ? out : out.outputs, out.note); }
+  try { const out = await fn(); ctx.finish(Array.isArray(out) ? out : out.outputs, out.note); btn.disabled = false; btn.textContent = old; }
   catch (e) { console.error(e); err.textContent = e.message || String(e); btn.disabled = false; btn.textContent = old; }
 }
 

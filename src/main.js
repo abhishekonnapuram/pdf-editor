@@ -225,7 +225,7 @@ async function toolPage(id) {
   let impl;
   try { impl = await loadTool(meta); } catch (e) { body.replaceChildren(h('p', { class: 'error' }, 'Could not load this tool. ' + e.message)); return main; }
 
-  const ctxBase = { meta, toast, openTool: (tid, files) => { handoff = files; go('#/tool/' + tid); } };
+  const ctxBase = { meta, toast, openTool: (tid, files) => { keepPage(); handoff = files; go('#/tool/' + tid); } };
   // The page has work on it once the visitor has done something past the "choose a file" screen.
   let touched = false, downloaded = false;
   for (const ev of ['pointerdown', 'keydown', 'drop', 'input']) body.addEventListener(ev, () => { touched = true; }, true);
@@ -240,12 +240,30 @@ async function toolPage(id) {
   const NON_PDF_INPUT = ['creative-apps', 'vectorcraft', 'lightcraft', 'filmcraft', 'effectcraft', 'soundcraft', 'pdfcraft', 'photo-studio', 'font-finder', 'design-studio', 'image-hd', 'word-to-pdf', 'ppt-to-pdf', 'excel-to-pdf', 'html-to-pdf', 'jpg-to-pdf', 'scan', 'workflow', 'assistant', 'passport-photo', 'audio-to-text'];
   const imgTools = TOOLS.filter((t) => (t.cat === 'image' && t.id !== 'html-to-image' && t.id !== id) || t.id === 'jpg-to-pdf');
   const tools = TOOLS.filter((t) => !t.server && t.id !== id && !NON_PDF_INPUT.includes(t.id) && t.cat !== 'image');
+  // The editing screen is kept (not thrown away) while the result shows, so "Back to editing" and the
+  // browser's back button return to it exactly as it was.
+  let editing = null;
+  const pageHash = location.hash;
+  const backToEditing = () => {
+    if (!editing) return;
+    body.replaceChildren(...editing.nodes);
+    window.scrollTo(0, editing.y);
+    editing = null;
+  };
+  window.addEventListener('popstate', (e) => {
+    // Only for this page's own back step: going to another tool also fires popstate, with the new address.
+    if (editing && document.body.contains(body) && location.hash === pageHash && !e.state?.esResult) backToEditing();
+  });
   const finish = (outputs, note) => {
     downloaded = false;
+    const nodes = [...body.childNodes];
+    editing = nodes.length && !(nodes[0].classList?.contains('drop')) ? { nodes, y: window.scrollY } : null;
+    if (editing) history.pushState({ ...(history.state || {}), esResult: true }, '', location.href);
     body.replaceChildren(resultView(outputs, {
+      onBack: editing ? () => { if (history.state?.esResult) history.back(); else backToEditing(); } : null,
       note, tools, imgTools,
       onRestart: () => start([]),
-      onChain: (tid, files) => { handoff = files; go('#/tool/' + tid); }
+      onChain: (tid, files) => { keepPage(); handoff = files; go('#/tool/' + tid); }
     }));
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
@@ -287,6 +305,7 @@ async function toolPage(id) {
         try {
           const res = await impl.process(files, form.values(), { ...ctxBase, progress: prog.set });
           const outputs = Array.isArray(res) ? res : res.outputs;
+          run.disabled = false; prog.el.classList.add('hidden');
           finish(outputs, Array.isArray(res) ? null : res.note);
         } catch (e) {
           console.error(e);
@@ -333,15 +352,34 @@ function openAssistant() {
   document.body.append(el);
   aiDock = { el, close };
   loadTool(meta).then((impl) => {
-    aiDock.api = impl.mount(body, { meta, toast, docked: true, files: [], openTool: (tid, files) => { handoff = files; location.hash = '#/tool/' + tid; } });
+    aiDock.api = impl.mount(body, { meta, toast, docked: true, files: [], openTool: (tid, files) => { keepPage(); handoff = files; location.hash = '#/tool/' + tid; } });
     aiDock.api?.focus();
   }).catch((e) => body.replaceChildren(h('p', { class: 'error' }, 'Could not load the assistant. ' + e.message)));
+}
+
+// Pages left by sending a result to another tool are kept, so going back shows them again with all their work.
+const pageCache = new Map();
+let pageSeq = 0;
+function keepPage() {
+  const main = app.querySelector('main');
+  if (!main || !/^#\/tool\//.test(location.hash)) return;
+  const id = 'p' + (++pageSeq);
+  pageCache.set(id, { main, guard: leaveGuard, title: document.title });
+  if (pageCache.size > 6) pageCache.delete(pageCache.keys().next().value);
+  history.replaceState({ ...(history.state || {}), esPage: id }, '', location.href);
 }
 
 async function route() {
   const m = location.hash.match(/^#\/tool\/([\w-]+)/);
   app.replaceChildren(header());
   renderInstall();
+  const kept = m && pageCache.get(history.state?.esPage);
+  if (kept) {
+    app.append(kept.main);
+    if (m[1] !== 'assistant') app.append(aiFab());
+    leaveGuard = kept.guard; document.title = kept.title;
+    return;
+  }
   if (m) {
     const page = await toolPage(m[1]);
     app.append(page);

@@ -198,7 +198,7 @@ function passportMount(body, files, ctx) {
     const go = h('button', { class: 'btn primary big', type: 'button', style: { width: '100%' }, onclick: async () => {
       if (!data) return;
       go.disabled = true; err.textContent = '';
-      try { const r = await passportOutputs({ ...data, ...st }, spec(), o); ctx.finish(r.outputs, r.note); }
+      try { const r = await passportOutputs({ ...data, ...st }, spec(), o); ctx.finish(r.outputs, r.note); go.disabled = false; }
       catch (e) { err.textContent = e.message || String(e); go.disabled = false; }
     } }, 'Create passport photo');
     side.replaceChildren(h('h3', {}, 'Passport photo'),

@@ -293,8 +293,9 @@ export function progressBox() {
 }
 
 // Result screen: download buttons, zip, text preview, and hand-off to another tool.
-export function resultView(outputs, { title = 'Done!', onRestart, tools, imgTools, onChain, note }) {
+export function resultView(outputs, { title = 'Done!', onRestart, onBack, tools, imgTools, onChain, note }) {
   const root = h('div', { class: 'panel result' });
+  if (onBack) root.append(h('button', { class: 'btn backedit', type: 'button', title: 'Go back to your work and change something', onclick: onBack }, h('span', { html: icon('left') }), 'Back to editing'));
   root.append(h('div', { class: 'ticon lg', style: { margin: '0 auto', '--tc': 'var(--ok)' }, html: icon('check') }), h('h2', {}, title));
   if (note) root.append(h('p', { class: 'status' }, note));
   const texts = outputs.filter((o) => o.preview);
@@ -343,6 +344,7 @@ export function resultView(outputs, { title = 'Done!', onRestart, tools, imgTool
     sel.addEventListener('change', () => sel.value && onChain(sel.value, pics.map((o) => new File([o.blob], o.name, { type: o.blob.type }))));
     row.append(sel);
   }
+  if (onBack) row.append(h('button', { class: 'btn', type: 'button', onclick: onBack }, h('span', { html: icon('edit') }), 'Make more changes'));
   row.append(h('button', { class: 'btn ghost', type: 'button', onclick: onRestart }, 'Start over'));
   root.append(row);
   return root;

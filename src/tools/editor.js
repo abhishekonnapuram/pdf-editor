@@ -2287,6 +2287,8 @@ function groupPanel() {
         toast('Downloaded a PDF with editable text (built-in fonts are used for the text).');
         return;
       }
+      status.textContent = ''; saveBtn.disabled = false;
+      window.addEventListener('beforeunload', beforeUnload);
       ctx.finish([{ name: stem(file.name) + mode.suffix + '.pdf', blob: pdfBlob(out) }],
         redacts.length ? `Redacted ${redacts.length} page(s). Those pages were flattened into images so the hidden text cannot be recovered.` : null);
     } catch (e) {
