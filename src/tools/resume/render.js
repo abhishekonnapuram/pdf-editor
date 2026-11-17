@@ -49,6 +49,8 @@ function joinWrap(font, items, size, maxW, sep = '   |   ') {
   return lines;
 }
 
+const isDark = (hex) => { const n = parseInt(String(hex).replace('#', '').padEnd(6, '0').slice(0, 6), 16); return 0.2126 * (n >> 16) + 0.7152 * ((n >> 8) & 255) + 0.0722 * (n & 255) < 150; };
+
 /** Lays out the whole resume at scale s. With dry set nothing is drawn; the page count is returned. */
 function layout(doc, F, HF, r, s, dry, photoImg) {
   const d = r.design, T = templateOf(d.template), b = r.basics;
@@ -61,7 +63,12 @@ function layout(doc, F, HF, r, s, dry, photoImg) {
   const side = T.layout === 'side-left' || T.layout === 'side-right';
   const sideW = side ? Math.round(W * 0.32) : 0;
   const sideX = T.layout === 'side-left' ? 0 : W - sideW;
-  const sideFill = !side ? null : T.side === 'solid' ? A : tintOf(d.accent, 0.9);
+  // Colour scheme: an optional fill colour (sidebar and header band) and text colour.
+  const INKC = d.ink && !T.plain ? col(d.ink) : INK;
+  const fillHex = !T.plain && d.fill ? d.fill : null;
+  const fillDark = fillHex ? isDark(fillHex) : true;
+  const sideFill = !side ? null : fillHex ? col(fillHex) : T.side === 'solid' ? A : tintOf(d.accent, 0.9);
+  const sideLight = fillHex ? fillDark : T.side === 'solid';
   const pages = [];
   function newPage() {
     const p = dry ? NOPAGE : doc.addPage([W, H]);
@@ -78,7 +85,7 @@ function layout(doc, F, HF, r, s, dry, photoImg) {
   // A column of text that flows onto new pages.
   function column(x, w, top, { light = false } = {}) {
     const c = { x, w, y: top, pi: 0, light };
-    c.ink = light ? WHITE : INK;
+    c.ink = light ? WHITE : INKC;
     c.grey = light ? rgb(0.88, 0.9, 0.94) : GREY;
     c.acc = light ? WHITE : A;
     c.page = () => pages[c.pi];
@@ -241,10 +248,10 @@ function layout(doc, F, HF, r, s, dry, photoImg) {
   let main, narrow = null;
   if (side) {
     const pad = 22 * s;
-    narrow = column(sideX + pad, sideW - pad * 2, top, { light: T.side === 'solid' });
+    narrow = column(sideX + pad, sideW - pad * 2, top, { light: sideLight });
     main = column(T.layout === 'side-left' ? sideW + 26 * s : M, W - sideW - 26 * s - M, top);
   } else main = column(M, W - 2 * M, top);
-  if (narrow) { narrow.narrow = true; narrow.tinted = T.side === 'tint'; }
+  if (narrow) { narrow.narrow = true; narrow.tinted = fillHex ? !sideLight : T.side === 'tint'; }
 
   // ----- header -----
   const name = b.name || 'Your Name';
@@ -257,20 +264,21 @@ function layout(doc, F, HF, r, s, dry, photoImg) {
     const cl = hdr === 'band' ? joinWrap(F.reg, contacts.map((x) => safe(F, x)), base * 0.88, tw) : [];
     let bh = pad * 2 + nm.length * ns * 1.15 + (b.title ? base * 1.25 * 1.5 : 0) + cl.length * base * 0.88 * 1.45;
     bh = Math.max(bh, ps + pad * 1.6);
-    const fill = hdr === 'block' ? col(d.accent) : A;
+    const fill = fillHex ? col(fillHex) : hdr === 'block' ? col(d.accent) : A;
+    const onFill = fillDark ? WHITE : INKC, onFill2 = fillDark ? rgb(0.93, 0.95, 0.97) : GREY;
     pages[0].drawRectangle({ x: 0, y: H - bh, width: W, height: bh, color: fill });
     drawPhoto(M, H - bh / 2 - ps / 2, ps);
     let y = H - pad;
-    for (const l of nm) { draw(pages[0], l, tx, y - ns, ns, HF.bold, WHITE, hdr === 'block' ? ns * 0.06 : 0); y -= ns * 1.15; }
-    if (b.title) { draw(pages[0], safe(F, b.title), tx, y - base * 1.25 - 2, base * 1.25, F.reg, rgb(1, 1, 1)); y -= base * 1.25 * 1.5; }
-    for (const l of cl) { draw(pages[0], l, tx, y - base * 0.88 - 2, base * 0.88, F.reg, rgb(0.93, 0.95, 0.97)); y -= base * 0.88 * 1.45; }
+    for (const l of nm) { draw(pages[0], l, tx, y - ns, ns, HF.bold, onFill, hdr === 'block' ? ns * 0.06 : 0); y -= ns * 1.15; }
+    if (b.title) { draw(pages[0], safe(F, b.title), tx, y - base * 1.25 - 2, base * 1.25, F.reg, onFill); y -= base * 1.25 * 1.5; }
+    for (const l of cl) { draw(pages[0], l, tx, y - base * 0.88 - 2, base * 0.88, F.reg, onFill2); y -= base * 0.88 * 1.45; }
     main.y = H - bh - 6 * s;
     if (hdr === 'block' && contacts.length) { main.space(8 * s); for (const l of joinWrap(F.reg, contacts.map((x) => safe(F, x)), base * 0.9, main.w)) main.para(l, { size: base * 0.9, color: GREY }); }
   } else if (hdr === 'side' || hdr === 'main-name') {
     const ps = photoOn ? Math.min(narrow.w, 112 * s) : 0;
     if (ps) { drawPhoto(narrow.x + (narrow.w - ps) / 2, top - ps, ps); narrow.space(ps + 14 * s); }
     const into = hdr === 'side' ? narrow : main;
-    into.para(name, { size: hdr === 'side' ? NAME * 0.85 : NAME, font: HF.bold, color: hdr === 'side' ? (narrow.light ? WHITE : A) : INK, g: 1.15, align: hdr === 'side' && ps ? 'center' : 'left' });
+    into.para(name, { size: hdr === 'side' ? NAME * 0.85 : NAME, font: HF.bold, color: hdr === 'side' ? (narrow.light ? WHITE : A) : INKC, g: 1.15, align: hdr === 'side' && ps ? 'center' : 'left' });
     if (b.title) into.para(b.title, { size: base * 1.2, color: hdr === 'side' ? narrow.ink : A, align: hdr === 'side' && ps ? 'center' : 'left' });
     if (hdr === 'main-name') main.space(2 * s);
     if (contacts.length) { narrow.heading('Contact'); for (const l of contacts) narrow.para(l, { size: base * 0.9 }); }

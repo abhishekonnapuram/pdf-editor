@@ -38,13 +38,20 @@ const mods = {
   assistant: () => import('./assistant.js'),
   more: () => import('./more.js'),
   docs: () => import('./docs.js'),
-  resume: () => import('./resume/editor.js')
+  resume: () => import('./resume/editor.js'),
+  fontpairs: () => import('./fontpairs.js'),
+  aiplus: () => import('./aiplus.js'),
+  admaker: () => import('./admaker.js')
 };
 
 const T = (id, name, desc, cat, icon, mod, extra = {}) => ({ id, name, desc, cat, icon, mod, ...extra });
 
 export const TOOLS = [
   T('assistant', 'AI Assistant', 'Type or say what you want ("compress this PDF under 1 MB", "remove the background and make it white, then resize to 600 x 600") and it runs the right tools on your files.', 'ai', 'mic', 'assistant', { tag: 'New' }),
+  T('ai-video-ad', 'AI video ad maker', 'Make video ads from your photos and clips: give a few words about the offer and ads you like, and AI writes the script, picks fonts, colours and pace, adds motion, music and a voice-over, and exports MP4. Finish it in FilmCraft.', 'ai', 'video', 'admaker', { tag: 'New', keys: 'video ad maker, reel maker, instagram ad, promo video, ad video, product video, youtube shorts maker, video advertisement' }),
+  T('ai-writer', 'AI Writer', 'Ad copy, captions with hashtags, product descriptions, video scripts, headlines and emails, written by free AI on your device.', 'ai', 'pen', 'aiplus', { tag: 'New', keys: 'ai copywriter, caption generator, ad copy generator, product description generator, script writer, slogan generator' }),
+  T('ai-voiceover', 'AI Voice-over', 'Turn text into natural speech for videos, reels and ads, with 13 voices. Free text to speech on your device, download MP3.', 'ai', 'wave', 'aiplus', { tag: 'New', keys: 'text to speech, tts, voice generator, ai voice, voiceover maker, narration' }),
+  T('smart-crop', 'AI Smart crop', 'Crop one photo for every social size at once (Instagram, Stories, YouTube, Facebook, LinkedIn…) with AI that keeps faces and the product in frame.', 'ai', 'crop', 'aiplus', { tag: 'New', keys: 'social media resizer, instagram crop, auto crop, smart resize, thumbnail crop' }),
   T('passport-photo', 'Passport photo', 'Passport, visa and ID photos for India, USA, UK, Schengen, Canada and more: AI finds your face, replaces the background and sizes your head to the rules, with a print sheet.', 'ai', 'passport', 'aitools', { tag: 'New' }),
   T('audio-to-text', 'Audio to text', 'Turn speech in audio and video files into text or subtitles (SRT, VTT) in 20+ languages, with Whisper AI on your device.', 'ai', 'wave', 'aitools', { tag: 'New' }),
   T('chat-pdf', 'Chat with PDF', 'Ask questions about a PDF by typing or speaking, and get the answer with the page it comes from.', 'ai', 'chat', 'aitools', { tag: 'New' }),
@@ -110,6 +117,7 @@ export const TOOLS = [
   T('translate', 'Translate PDF', 'Translate a PDF into 30+ languages (Hindi, Telugu, Tamil, Spanish, Arabic, Chinese…) keeping its layout, on your device.', 'intel', 'translate', 'translate'),
   T('pdf-to-md', 'PDF to Markdown', 'Turn PDFs into Markdown with headings, lists and links preserved.', 'convert', 'markdown', 'convert'),
   T('pdf-to-text', 'PDF to Text', 'Extract all text from a PDF into a plain .txt file.', 'convert', 'text', 'convert', { tag: 'Extra' }),
+  T('font-pairs', 'Font pairing', 'Find fonts that go together: 50 hand-picked Google font pairs by design need, tried live on your own picture, with pairs and colours suggested from the image. Make and save your own pairs, export PNG or CSS.', 'design', 'type', 'fontpairs', { tag: 'New', keys: 'font pairing, font combinations, google font pairs, typography, font pairs for logo, font generator' }),
   T('font-finder', 'Font Finder', 'Identify the font in any picture: upload a logo, poster or screenshot and get the closest Google fonts, free to use.', 'design', 'text', 'fonts', { tag: 'New' }),
   T('screenshot-to-template', 'Screenshot to template', 'Upload a screenshot or snapshot of any design: it is rebuilt in high resolution as an editable template (layers, matched fonts) that opens in Design Studio.', 'design', 'scan', 'smart', { tag: 'New' }),
   T('image-to-layers', 'Image to layers', 'Split any photo, design or poster into layers with free on-device AI: click any object or person to cut it out, the background is filled in behind it, and text, shapes and graphics become editable too.', 'design', 'organize', 'smart', { tag: 'New' }),

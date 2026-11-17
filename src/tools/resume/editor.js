@@ -5,6 +5,11 @@ import { h, toast, pickFiles, modal } from '../../lib/ui.js';
 import { icon } from '../../lib/icons.js';
 import { download, openPdfjs, renderPage } from '../../lib/core.js';
 import { readPicture, resizeCanvas } from '../../lib/imgio.js';
+import { fontPicker, loadFont, fontStack } from '../../lib/fonts.js';
+import { FONT_PAIRS, RESUME_SCHEMES } from '../../lib/pairs.js';
+
+// Font pairs that suit a resume (calm, readable, professional).
+const RESUME_PAIRS = FONT_PAIRS.filter((p) => p.tags.includes('resume') || ['poppins-lora', 'raleway-lato', 'jakarta-lora', 'zilla-worksans', 'spectral-karla', 'sora-inter', 'poppins-hind'].includes(p.id));
 import {
   SECTION_TYPES, KIND_NAMES, TEMPLATES, RFONTS, ACCENTS, templateOf, applyTemplate, fieldsOf, newSection, newEntry, uid,
   blankResume, normalize, listResumes, loadResume, saveResume, deleteResume, openLast, history, sampleResume, SIDE_TYPES, splitLines
@@ -385,18 +390,35 @@ export function mount(el, ctx) {
         changed(); drawDesign();
       } }, h('div', { class: 'rsm-thumb' }, img), h('span', {}, t.name));
     }));
-    const fontSel = (key, first) => h('select', { onchange: (e) => set(key, e.target.value, true) },
-      first ? h('option', { value: '' }, first) : null, RFONTS.map((f) => h('option', { value: f, selected: d[key] === f }, f)));
+    // Any Google font, through the searchable picker.
+    const fontSel = (key, first) => fontPicker(d[key] || '', (v) => { d[key] = v || (first ? '' : d.font); d.pair = ''; changed(); drawDesign(); }, { standard: !!first, standardLabel: first || '' });
+    const pairCard = (p) => {
+      [p.head, p.body].forEach((f) => loadFont(f, { bold: true }));
+      const on = d.pair === p.id || (!d.pair && d.font === p.body && (d.headFont || d.font) === p.head);
+      return h('button', { type: 'button', class: 'rsm-pair' + (on ? ' on' : ''), title: p.why, onclick: () => { Object.assign(d, { font: p.body, headFont: p.head === p.body ? '' : p.head, pair: p.id }); changed(); drawDesign(); } },
+        h('b', { style: { fontFamily: fontStack(p.head), fontWeight: p.hw } }, p.head), h('span', { style: { fontFamily: fontStack(p.body) } }, p.body));
+    };
+    const scheme = (sc) => h('button', { type: 'button', class: 'rsm-scheme' + (d.scheme === sc.id ? ' on' : ''), title: sc.name, 'aria-label': 'Colour scheme ' + sc.name,
+      onclick: () => { Object.assign(d, { accent: sc.accent, fill: sc.fill, ink: sc.ink, scheme: sc.id }); changed(); drawDesign(); } },
+      h('i', { style: { background: sc.fill } }), h('i', { style: { background: sc.accent } }), h('i', { style: { background: sc.ink } }));
+    const colorField = (key, label, auto) => h('label', { class: 'rsm-colf' }, h('input', { type: 'color', value: d[key] || auto, oninput: (e) => { d[key] = e.target.value; d.scheme = ''; changed(); } }),
+      h('span', {}, label), d[key] && key !== 'accent' ? h('button', { type: 'button', class: 'linkbtn', onclick: (e) => { e.preventDefault(); d[key] = ''; d.scheme = ''; changed(); drawDesign(); } }, 'auto') : '');
     const rng = (key, min, max, step, fmt) => {
       const out = h('span', { class: 'status' }, fmt(d[key]));
       return h('div', { class: 'rsm-range' }, h('input', { type: 'range', min, max, step, value: d[key], oninput: (e) => { d[key] = +e.target.value; out.textContent = fmt(d[key]); changed(); } }), out);
     };
     pane.replaceChildren(
       h('h3', { class: 'rsm-h' }, 'Template'), gal,
-      h('h3', { class: 'rsm-h' }, 'Colour'),
-      h('div', { class: 'rsm-swatches' }, ACCENTS.map((c) => h('button', { type: 'button', class: 'rsm-sw' + (d.accent.toLowerCase() === c ? ' on' : ''), style: { background: c }, title: c, 'aria-label': 'Colour ' + c, onclick: () => set('accent', c, true) })),
-        h('label', { class: 'rsm-sw custom', title: 'Any colour' }, h('input', { type: 'color', value: d.accent, oninput: (e) => { d.accent = e.target.value; changed(); } }))),
-      h('h3', { class: 'rsm-h' }, 'Fonts'),
+      h('h3', { class: 'rsm-h' }, 'Colour schemes'),
+      h('div', { class: 'rsm-schemes' }, RESUME_SCHEMES.map(scheme)),
+      h('p', { class: 'hint' }, 'Each scheme sets the sidebar or header colour, the accent and the text colour. Sidebars and header bands use the first colour.'),
+      h('h3', { class: 'rsm-h' }, 'Accent colour'),
+      h('div', { class: 'rsm-swatches' }, ACCENTS.map((c) => h('button', { type: 'button', class: 'rsm-sw' + (d.accent.toLowerCase() === c ? ' on' : ''), style: { background: c }, title: c, 'aria-label': 'Colour ' + c, onclick: () => { d.scheme = ''; set('accent', c, true); } })),
+        h('label', { class: 'rsm-sw custom', title: 'Any colour' }, h('input', { type: 'color', value: d.accent, oninput: (e) => { d.accent = e.target.value; d.scheme = ''; changed(); } }))),
+      h('div', { class: 'rsm-colors' }, colorField('accent', 'Accent', '#1f3a5f'), colorField('fill', 'Sidebar / header', d.accent), colorField('ink', 'Text', '#1a1c23')),
+      h('h3', { class: 'rsm-h' }, 'Font pairs'),
+      h('div', { class: 'rsm-pairs' }, RESUME_PAIRS.map(pairCard)),
+      h('p', { class: 'hint' }, 'Or choose any of the 1,900+ Google fonts:'),
       grid(field('Text', fontSel('font')), field('Name and headings', fontSel('headFont', 'Same as text'))),
       grid(field('Text size', rng('size', 8.5, 12, 0.1, (v) => (+v).toFixed(1) + ' pt')), field('Line spacing', rng('spacing', 0.75, 1.4, 0.05, (v) => Math.round(v * 100) + '%'))),
       field('Margins', seg('margin', [['narrow', 'Narrow'], ['normal', 'Normal'], ['wide', 'Wide']])),
@@ -487,7 +509,7 @@ export function mount(el, ctx) {
       if (copyLook.checked && canvas) {
         const { matchDesign } = await import('./match.js');
         const m = await matchDesign(canvas, say);
-        r.design = { ...applyTemplate(r.design, m.template), accent: m.accent, font: m.font, headFont: m.headFont, photo: r.basics.photo ? (m.photo === 'none' ? 'circle' : m.photo) : 'none' };
+        r.design = { ...applyTemplate(r.design, m.template), accent: m.accent, fill: '', ink: '', scheme: '', pair: '', font: m.font, headFont: m.headFont, photo: r.basics.photo ? (m.photo === 'none' ? 'circle' : m.photo) : 'none' };
       }
       wait.remove();
       const n = r.sections.length;
@@ -524,7 +546,7 @@ export function mount(el, ctx) {
             ' (opens it as an editable PDF and Word file).'))),
       [{ label: 'Cancel', value: null }, { label: 'Also bring in its text', value: 'text' }, { label: 'Use this design', primary: true, value: 'design' }]);
       if (!choice) return;
-      const design = { ...applyTemplate(R.design, m.template), accent: m.accent, font: m.font, headFont: m.headFont, fit: R.design.fit, paper: R.design.paper };
+      const design = { ...applyTemplate(R.design, m.template), accent: m.accent, fill: '', ink: '', scheme: '', pair: '', font: m.font, headFont: m.headFont, fit: R.design.fit, paper: R.design.paper };
       if (m.photo !== 'none') design.photo = m.photo;
       if (choice === 'text') {
         const P = await import('./parse.js');

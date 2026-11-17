@@ -68,12 +68,16 @@ export const RFONTS = ['Inter', 'Roboto', 'Lato', 'Open Sans', 'Poppins', 'Monts
   'Merriweather', 'Lora', 'PT Serif', 'Libre Baskerville', 'EB Garamond', 'Playfair Display', 'Roboto Slab', 'Bitter', 'Oswald'];
 export const ACCENTS = ['#1f3a5f', '#24427a', '#1d4ed8', '#0e7490', '#173d3a', '#15803d', '#7c3aed', '#be185d', '#b91c1c', '#c2410c', '#7a4b2a', '#3f3f46', '#111111'];
 
-export const DEFAULT_DESIGN = { template: 'classic', accent: '#1f3a5f', font: 'Lato', headFont: '', size: 10, spacing: 1, margin: 'normal', paper: 'a4', photo: 'circle', fit: false };
+export const DEFAULT_DESIGN = { template: 'classic', accent: '#1f3a5f', font: 'Lato', headFont: '', size: 10, spacing: 1, margin: 'normal', paper: 'a4', photo: 'circle', fit: false,
+  fill: '', ink: '', scheme: '', pair: '' }; // fill: sidebar / header colour, ink: text colour ('' = automatic)
 
-/** Switching template takes its colour, font and sizes unless the visitor chose their own. */
+/** Switching template takes its colour, font and sizes, but keeps a colour scheme or font pair the visitor picked. */
 export function applyTemplate(design, id) {
   const t = templateOf(id);
-  return { ...design, template: t.id, accent: t.accent, font: t.font, headFont: '', size: t.size || 10, spacing: t.spacing || 1, photo: t.photo || (design.photo === 'none' ? 'circle' : design.photo) };
+  const out = { ...design, template: t.id, accent: t.accent, fill: '', ink: '', scheme: '', font: t.font, headFont: '', pair: '', size: t.size || 10, spacing: t.spacing || 1, photo: t.photo || (design.photo === 'none' ? 'circle' : design.photo) };
+  if (design.scheme) Object.assign(out, { accent: design.accent, fill: design.fill, ink: design.ink, scheme: design.scheme });
+  if (design.pair) Object.assign(out, { font: design.font, headFont: design.headFont, pair: design.pair });
+  return out;
 }
 
 export function blankResume(name = 'My resume') {

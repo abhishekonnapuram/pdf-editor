@@ -36,7 +36,7 @@ export default defineConfig({
       },
       workbox: {
         globPatterns: ['**/*.{js,mjs,css,html,svg,png,jpg,woff2}'],
-        globIgnores: ['**/models/**', `**/{${CRAFTS}}/**`],
+        globIgnores: ['**/models/**', '**/assets/kokoro-*.js', `**/{${CRAFTS}}/**`],
         maximumFileSizeToCacheInBytes: 12 * 1024 * 1024,
         // The Craft apps are separate sites in their own folders: never answer their pages with ours.
         navigateFallbackDenylist: [CRAFT_PATH],

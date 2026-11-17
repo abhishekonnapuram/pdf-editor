@@ -75,7 +75,12 @@ export const SLUGS = {
   'qr-code': 'qr-code-generator',
   'video-to-mp3': 'mp4-to-mp3',
   'invoice-generator': 'gst-invoice-generator',
-  'resume-builder': 'resume-builder'
+  'resume-builder': 'resume-builder',
+  'font-pairs': 'font-pairing',
+  'ai-video-ad': 'ai-video-ad-maker',
+  'ai-writer': 'ai-writer',
+  'ai-voiceover': 'ai-voice-over',
+  'smart-crop': 'smart-crop-social-media-sizes'
 };
 
 /** The tool's page address, e.g. "/merge-pdf/" (or the in-app address when it has no page). */

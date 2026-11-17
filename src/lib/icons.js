@@ -1,5 +1,7 @@
 // Small stroke icon set (24x24 grid).
 const P = {
+  video: '<rect x="2" y="5" width="14" height="14" rx="2"/><path d="m16 10 6-3v10l-6-3z"/>',
+  type: '<path d="M3 19 8 5l5 14"/><path d="M4.8 14h6.4"/><path d="M15 13.5a3 3 0 1 1 6 0V19"/><path d="M21 16.5a3 3 0 1 1-3-3"/>',
   down: '<path d="m6 9 6 6 6-6"/>',
   mic: '<rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0"/><path d="M12 18v3"/>',
   send: '<path d="M22 2 11 13"/><path d="M22 2 15 22l-4-9-9-4z"/>',

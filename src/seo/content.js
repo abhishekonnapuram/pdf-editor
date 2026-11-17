@@ -511,6 +511,122 @@ Object.assign(CONTENT, {
       ['Is it ATS friendly?', 'Yes. The PDF has real, selectable text, and the ATS plain template, Word file and .txt export are one simple column that tracking systems read well.'],
       ['Can I keep several versions?', 'Yes. Make as many resumes as you like, duplicate one to tailor it for another job, and switch between them. They are saved in this browser only.'],
       ['Is it really free, with no watermark?', 'Yes, download as many times as you like.']]
+  },
+  'font-pairs': {
+    "t": "Font Pairing Tool – Free Google Font Combinations",
+    "d": "Find fonts that look good together: 50 hand-picked Google font pairs by style, previewed on your own image, with colour palettes. Copy CSS or download PNG.",
+    "i": "Choosing fonts is quicker when you can see them on your own design. Browse 50 hand-picked Google font pairs sorted by what you are making (luxury, food, tech, wedding, sales, Hindi-ready and more), add your picture to see the headline and text on it, and drag the text where you want it. EditSupreme looks at your image and suggests the pairs and colours that suit it. Make your own pair from the 1,900+ Google fonts, save favourites, then download a PNG or copy the CSS for your website.",
+    "s": [
+      "Pick a style such as Elegant, Bold ads or Tech, or add your picture to get suggestions.",
+      "Click a pair to try it, edit the text, layout and colours, and drag the text into place.",
+      "Download a PNG or copy the CSS, and save the pairs you like."
+    ],
+    "q": [
+      [
+        "Are these fonts free for commercial use?",
+        "Yes. They are all Google Fonts, free for personal and commercial work."
+      ],
+      [
+        "Can I make my own combinations?",
+        "Yes. Choose any headline and text font from the full Google Fonts library, set the weight, capitals and spacing, and save it to My pairs."
+      ],
+      [
+        "How does it suggest fonts for my image?",
+        "It measures the brightness, colourfulness and warmth of your picture and ranks the pairs that suit that mood, then picks black or white text that reads well on it."
+      ]
+    ]
+  },
+  'ai-video-ad': {
+    "t": "AI Video Ad Maker – Free Reels & Video Ads from Photos",
+    "d": "Make video ads, reels and shorts from your photos and clips. AI writes the script and voice-over, copies the style of ads you like, and exports MP4. Free, no watermark.",
+    "i": "Create video ads without expensive subscriptions. Add your product photos or clips, say what you are selling and the offer, and optionally add screenshots or videos of ads you like. EditSupreme copies their colours, mood and pace (not their pictures or words), writes a hook-first script with on-device AI, chooses fonts that fit, and builds scenes with motion, transitions, your logo and music. Add a natural AI voice-over, edit any scene, and export a 9:16, 1:1, 4:5 or 16:9 video. For finishing touches, open it in FilmCraft, our full video editor.",
+    "s": [
+      "Add your photos or clips, and (optionally) a few ads you like as reference.",
+      "Write the product, key points, offer and call to action, pick a tone and length, then press “Create my ad”.",
+      "Edit the scenes, style, music and voice-over, then export the video or finish it in FilmCraft."
+    ],
+    "q": [
+      [
+        "Is it free? Is there a watermark?",
+        "Yes, it is free and there is no watermark."
+      ],
+      [
+        "Does it upload my videos?",
+        "No. The script, voice-over and video are all made in your browser. The AI models download once and then run on your device."
+      ],
+      [
+        "Can it copy an ad I like?",
+        "It copies the look: colours, mood and how fast the shots change, and picks matching fonts. It does not copy other brands’ pictures, words or music."
+      ],
+      [
+        "Which format does it export?",
+        "MP4 (H.264) in Chrome and Edge, WebM in some other browsers. Choose 9:16 for Reels, Stories and Shorts, 1:1 or 4:5 for feeds, 16:9 for YouTube."
+      ],
+      [
+        "Can I keep editing in a real video editor?",
+        "Yes. “Finish in FilmCraft” opens your ad, clips and music in FilmCraft, the full video editor on this site."
+      ]
+    ]
+  },
+  'ai-writer': {
+    "t": "AI Writer – Free Ad Copy, Caption & Script Generator",
+    "d": "Write ad copy, Instagram captions with hashtags, product descriptions, video scripts, slogans and emails with free AI that runs on your device.",
+    "i": "Get words for your marketing in seconds. Say what you are promoting and who it is for, pick a tone, and the AI Writer drafts ad copy, captions with hashtags, product descriptions, video ad scripts, headlines, YouTube titles, bios and emails, or rewrites your own text. It uses the AI built into Chrome and Edge, or a small open model in your browser, so your ideas stay private.",
+    "s": [
+      "Choose what to write and describe your product or topic.",
+      "Pick the tone, length and number of options, then press Write.",
+      "Copy the result, write again, or turn it into a voice-over."
+    ],
+    "q": [
+      [
+        "Is it really free?",
+        "Yes. The AI runs on your own device, so there are no credits or limits."
+      ],
+      [
+        "Which browsers work best?",
+        "Chrome and Edge on a computer use their built-in AI. Other browsers download a small open model (about 800 MB) once."
+      ]
+    ]
+  },
+  'ai-voiceover': {
+    "t": "AI Voice-over – Free Text to Speech MP3",
+    "d": "Turn text into a natural voice-over for reels, ads and videos. 13 US and UK voices, adjustable speed, download MP3 or WAV. Free and private.",
+    "i": "Need a narrator for your video? Paste your script, choose from 13 natural US and UK English voices, set the speed and get a voice-over in seconds. It uses Kokoro, an open-source voice model that runs in your browser, so your script is never uploaded and you can use the audio commercially.",
+    "s": [
+      "Type or paste your script.",
+      "Pick a voice and speed, then press “Make voice-over”.",
+      "Listen, then download MP3 or WAV."
+    ],
+    "q": [
+      [
+        "Can I use the voice-over in ads?",
+        "Yes. The Kokoro model is released under the Apache 2.0 licence."
+      ],
+      [
+        "Which languages?",
+        "US and UK English for now."
+      ]
+    ]
+  },
+  'smart-crop': {
+    "t": "AI Smart Crop – Resize Photos for Every Social Size",
+    "d": "Crop one photo for Instagram, Stories, YouTube thumbnails, Facebook and LinkedIn at once. AI keeps faces and products in frame. Download all as ZIP.",
+    "i": "Posting the same picture everywhere means cropping it again and again. AI Smart crop finds the faces or the main subject in your photo and cuts it for every size you tick (Instagram post and portrait, Stories and Reels, YouTube thumbnail, Facebook post and cover, LinkedIn banner, X, Pinterest and more), keeping the important part in view. Download each picture or all of them as a ZIP.",
+    "s": [
+      "Add one or more photos.",
+      "Tick the sizes you need.",
+      "Press “Crop for all sizes” and download."
+    ],
+    "q": [
+      [
+        "Does it upload my photos?",
+        "No. Faces and subjects are found on your device."
+      ],
+      [
+        "What if my photo is smaller than the size?",
+        "It is enlarged smoothly; for the sharpest result use Upscale image first."
+      ]
+    ]
   }
 });
 
