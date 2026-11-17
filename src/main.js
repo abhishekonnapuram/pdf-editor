@@ -256,6 +256,7 @@ async function toolPage(id) {
     if (!touched || !document.body.contains(body)) return false;
     const first = body.firstElementChild;
     if (!first || first.classList.contains('drop')) return false;
+    if (first.dataset?.autosave) return false; // saved as you type (resume builder)
     if (first.classList.contains('result')) return !downloaded;
     return true;
   };

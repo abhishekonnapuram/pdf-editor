@@ -501,12 +501,16 @@ Object.assign(CONTENT, {
       ['Where are my business details saved?', 'Only in your own browser. Nothing is sent to us.']]
   },
   'resume-builder': {
-    t: 'Free Resume Builder – Make a Resume PDF & Word Online',
-    d: 'Build a professional resume with ready templates, then download it as PDF and Word. No sign-up, no watermark, saved in your browser.',
-    i: 'Write your resume once and get a polished PDF and an editable Word file. Fill in your experience, education, projects and skills, then pick a template (Classic, Modern with a coloured sidebar, or Compact), a font and a colour. Everything is saved in your browser so you can update it any time.',
-    q: [['Is it really free, with no watermark?', 'Yes, download as many times as you like.'],
-      ['Can I add a photo?', 'Yes, optionally. Many Indian employers expect one; many companies abroad prefer none.'],
-      ['Can I edit it in Word?', 'Yes, a Word (.docx) file is created along with the PDF.']]
+    t: 'Free Resume Builder & Editor – Edit Your Old Resume Online',
+    d: 'Make a new resume or edit your old one: import PDF, Word or a photo, pick from 12 templates, drag to reorder, check it, download PDF and Word.',
+    i: 'Build a resume from scratch or bring in the one you already have. Import a PDF, Word file or even a photo of your old resume and it is sorted into editable sections. Like a design you saw? Upload a picture of it and EditSupreme sets up the closest layout, colour, fonts and photo style. Drag sections and entries into any order, hide or rename them, add your own sections, and switch between 12 templates with a live preview. The checker points out missing details, weak wording and spelling slips, and shows which keywords from a job description you are missing. Download as PDF, Word or ATS-friendly plain text. Everything stays in your browser.',
+    s: ['Start a new resume, or press “Import old resume” and choose your PDF, Word file or photo.', 'Edit the text, drag sections into the order you want, and pick a template, colour and font in Design.', 'Open “Check & improve” to fix problems, then download PDF or Word.'],
+    q: [['Can I edit a resume I already have?', 'Yes. Import a PDF, Word (.docx) file or a photo of it. The text is read on your device and placed into editable sections. Check each section afterwards, because no reader is perfect.'],
+      ['Can it copy the design of another resume?', 'Upload a picture of a resume you like with “Match a design”. It detects the layout (sidebar, header band, columns), colour, fonts and photo style and applies the closest of our templates. For an exact copy of one page, use Image to editable.'],
+      ['Do I need AI or an account?', 'No. Importing, checking and all the templates work with built-in rules on your device. If your browser has its own built-in AI (recent Chrome or Edge), extra buttons can improve your points and write a summary, still on your device.'],
+      ['Is it ATS friendly?', 'Yes. The PDF has real, selectable text, and the ATS plain template, Word file and .txt export are one simple column that tracking systems read well.'],
+      ['Can I keep several versions?', 'Yes. Make as many resumes as you like, duplicate one to tailor it for another job, and switch between them. They are saved in this browser only.'],
+      ['Is it really free, with no watermark?', 'Yes, download as many times as you like.']]
   }
 });
 

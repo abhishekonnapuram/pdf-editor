@@ -37,7 +37,8 @@ const mods = {
   aitools: () => import('./aitools.js'),
   assistant: () => import('./assistant.js'),
   more: () => import('./more.js'),
-  docs: () => import('./docs.js')
+  docs: () => import('./docs.js'),
+  resume: () => import('./resume/editor.js')
 };
 
 const T = (id, name, desc, cat, icon, mod, extra = {}) => ({ id, name, desc, cat, icon, mod, ...extra });
@@ -116,7 +117,7 @@ export const TOOLS = [
   T('image-to-editable','Image to editable', 'Turn a resume or document picture (or scanned PDF) into an editable PDF and Word file that looks exactly the same.', 'convert', 'ocr', 'smart', { tag: 'New' }),
   T('edit-images','Edit PDF images', 'Change the words inside pictures and scanned pages, erase parts of images, replace, crop or recolour them.', 'edit', 'imgedit', 'editor', { tag: 'Extra' }),
   T('invoice-generator', 'Invoice generator', 'Make GST tax invoices, quotations and bills as PDF, with your logo, UPI QR code and amount in words. Your details are remembered.', 'design', 'invoice', 'docs', { tag: 'New', keys: 'gst invoice, bill maker, quotation maker, invoice maker, billing' }),
-  T('resume-builder', 'Resume builder', 'Make a professional resume in minutes with ready designs, then download it as PDF and Word. Saved in your browser to update any time.', 'design', 'resume', 'docs', { tag: 'New', keys: 'cv maker, resume maker, biodata, cv builder' }),
+  T('resume-builder', 'Resume builder', 'Make a new resume or edit your old one: import a PDF, Word file or photo, match a design you like, choose from 12 templates, drag to reorder, then download PDF and Word.', 'design', 'resume', 'resume', { tag: 'New', keys: 'cv maker, resume maker, biodata, cv builder, edit resume, update resume, resume editor, resume templates, ats resume' }),
   T('workflow', 'Create a workflow', 'Chain tools together (rotate, watermark, number, compress, protect…) and reuse them anytime.', 'workflows', 'workflow', 'extra')
 ];
 

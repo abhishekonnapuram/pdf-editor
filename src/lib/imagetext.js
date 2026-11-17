@@ -23,7 +23,13 @@ async function worker(langs, onStatus) {
 }
 
 export async function srcToCanvas(src) {
-  const img = await loadImage(src);
+  const img = src instanceof HTMLCanvasElement ? { naturalWidth: src.width, naturalHeight: src.height, el: src } : await loadImage(src);
+  if (img.el) {
+    const c = document.createElement('canvas');
+    c.width = img.naturalWidth; c.height = img.naturalHeight;
+    c.getContext('2d').drawImage(img.el, 0, 0);
+    return c;
+  }
   const c = document.createElement('canvas');
   c.width = img.naturalWidth; c.height = img.naturalHeight;
   c.getContext('2d').drawImage(img, 0, 0);
