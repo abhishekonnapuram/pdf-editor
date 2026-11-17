@@ -18,7 +18,7 @@ export const PHOTO_SOURCES = [
 export const ALL_SOURCE = { id: 'all', name: 'All free photo sites', needsKey: false, terms: 'Each photo shows its site and licence when you point at it. Credit the photographer when you can.' };
 
 // Which key sites the web server can search for everyone (empty when api/stock.php isn't there, e.g. in development).
-const API = './api/stock.php';
+const API = '/api/stock.php';
 let serverP = null;
 export function serverSources() {
   serverP ||= fetch(API + '?action=status', { cache: 'no-store' })

@@ -9,6 +9,16 @@ import { pageImages } from '../lib/pdfimages.js';
 const PDF = '.pdf,application/pdf';
 const IMG = 'image/*,.jpg,.jpeg,.png,.webp,.gif,.bmp';
 
+// iPhone HEIC photos, TIFF scans, PSD and SVG files are turned into a JPG or PNG first, so any picture can go in a PDF.
+async function browserReadable(file) {
+  const { kindOf, readPicture, encode, hasAlpha } = await import('../lib/imgio.js');
+  if (!['heic', 'tiff', 'psd', 'svg', 'raw'].includes(kindOf(file))) return file;
+  const c = (await readPicture(file)).frames[0].canvas;
+  const png = hasAlpha(c);
+  const blob = await encode(c, png ? 'png' : 'jpg', { quality: 0.92 });
+  return new File([blob], file.name.replace(/\.[^.]+$/, '') + (png ? '.png' : '.jpg'), { type: blob.type });
+}
+
 const applyOpts = [
   { key: 'apply', label: 'Pages', type: 'select', default: 'all', options: [['all', 'All pages'], ['odd', 'Odd pages'], ['even', 'Even pages'], ['range', 'Custom pages…']] },
   { key: 'range', label: 'Page numbers', placeholder: 'e.g. 1-3, 6, 9-', default: '', showIf: (v) => v.apply === 'range' }
@@ -370,7 +380,7 @@ export const tools = {
   },
 
   'jpg-to-pdf': {
-    accept: IMG, multiple: true, label: 'Select images', capture: true, runLabel: 'Convert to PDF',
+    accept: IMG + ',.heic,.heif,.tif,.tiff,.avif,.svg,.psd', multiple: true, label: 'Select images', capture: true, runLabel: 'Convert to PDF',
     options: [
       { key: 'size', label: 'Page size', type: 'select', default: 'fit', options: [['fit', 'Same as image'], ['a4', 'A4'], ['letter', 'US Letter'], ['legal', 'US Legal'], ['a5', 'A5']] },
       { key: 'orient', label: 'Orientation', type: 'seg', default: 'auto', options: [['auto', 'Auto'], ['portrait', 'Portrait'], ['landscape', 'Landscape']], showIf: (v) => v.size !== 'fit' },
@@ -384,7 +394,7 @@ export const tools = {
       let doc = await PDFDocument.create();
       for (let i = 0; i < files.length; i++) {
         ctx.progress(i / files.length, `Adding ${files[i].name}`);
-        const data = await imageFileToEmbeddable(files[i], o.shrink);
+        const data = await imageFileToEmbeddable(await browserReadable(files[i]), o.shrink);
         const img = await embedImage(doc, data);
         const m = +o.margin;
         let W, H;

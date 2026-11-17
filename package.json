@@ -1,7 +1,7 @@
 {
   "name": "editsupreme",
   "private": true,
-  "version": "1.1.1",
+  "version": "1.2.0",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -10,6 +10,7 @@
     "fetch-crafts": "node scripts/fetch-crafts.mjs"
   },
   "dependencies": {
+    "@breezystack/lamejs": "^1.2.7",
     "@cantoo/fontkit": "^2.0.12",
     "@cantoo/pdf-lib": "^2.11.1",
     "@huggingface/transformers": "^3.7.5",

@@ -3,10 +3,24 @@ import { registerSW } from 'virtual:pwa-register';
 import { h, dropzone, fileList, optionsForm, progressBox, resultView, toast } from './lib/ui.js';
 import { icon } from './lib/icons.js';
 import { TOOLS, CATEGORIES, CAT_COLOR, toolById, loadTool } from './tools/registry.js';
+import { toolUrl } from './seo/slugs.js';
 
 registerSW({ immediate: true });
 
 const app = document.getElementById('app');
+
+// On a tool's own page (editsupreme.com/merge-pdf/ …) the app opens straight on that tool, and the page's text
+// about the tool (made at build time for search engines) is shown under it.
+const seoEl = document.getElementById('seo');
+const seoTool = seoEl?.dataset.tool;
+const seoTitle = document.title;
+if (seoTool && seoTool !== 'home' && !seoTool.startsWith('page:') && !location.hash) history.replaceState(null, '', location.pathname + location.search + '#/tool/' + seoTool);
+function placeSeo(id) {
+  if (!seoEl) return;
+  if ((id || 'home') !== seoTool) { seoEl.remove(); return; }
+  const foot = app.querySelector('footer.footer');
+  if (foot) foot.before(seoEl); else app.append(seoEl);
+}
 let handoff = null; // files passed from one tool's result to the next tool
 let installPrompt = null;
 let filter = 'all';
@@ -79,7 +93,7 @@ function openMenu() {
   const bg = h('div', { class: 'drawer-bg', onclick: (e) => { if (e.target === bg) close(); } },
     h('nav', { class: 'drawer', 'aria-label': 'Menu' },
       h('div', { class: 'drawer-head' },
-        h('img', { src: './logo.png', alt: 'EditSupreme', height: 40 }),
+        h('img', { src: '/logo.png', alt: 'EditSupreme', height: 40 }),
         h('button', { class: 'iconbtn', type: 'button', 'aria-label': 'Close menu', html: icon('x'), onclick: close })),
       h('a', { href: '#/tool/assistant', class: 'navhot', onclick: close }, 'AI Assistant'),
       GROUPS.map((g) => h('details', { class: 'drawgroup' }, h('summary', {}, h('span', { class: 'mi', style: { '--tc': g.color }, html: icon(g.icon) }), g.name, h('span', { class: 'cnt' }, groupTools(g).length)), menuList(g, close))),
@@ -104,7 +118,7 @@ function header() {
   document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeAll(); });
   return h('header', { class: 'topbar' },
     h('button', { class: 'iconbtn menubtn', type: 'button', 'aria-label': 'Open menu', html: icon('menu'), onclick: openMenu }),
-    h('a', { class: 'brand', href: '#/', 'aria-label': 'EditSupreme home' }, h('img', { src: './logo.png', alt: 'EditSupreme', width: 116, height: 44 })),
+    h('a', { class: 'brand', href: '#/', 'aria-label': 'EditSupreme home' }, h('img', { src: '/logo.png', alt: 'EditSupreme', width: 116, height: 44 })),
     h('div', { class: 'spacer' }), nav, h('span', { id: 'installslot' }), themeButton());
 }
 
@@ -129,6 +143,11 @@ function toolCard(t) {
     h('span', { class: 'go', 'aria-hidden': 'true' }, 'Open →'));
 }
 
+// A tool matches a search when every word of it is in the tool's name, description or other names (keys).
+const toolText = (t) => (t.name + ' ' + t.desc + ' ' + (t.keys || '')).toLowerCase();
+const phrase = (t, q) => +(t.name + ' ' + (t.keys || '')).toLowerCase().includes(q.trim());
+const matches = (t, q) => q.split(/\s+/).filter(Boolean).every((w) => toolText(t).includes(w));
+
 function home() {
   const grid = h('div', { class: 'grid' });
   const inFilter = (t) => filter === 'all' || (filter.startsWith('g:') ? GROUPS.find((g) => 'g:' + g.id === filter)?.has(t) : t.cat === filter);
@@ -138,7 +157,9 @@ function home() {
     grid.replaceChildren(...TOOLS
       .filter((t) => !q || inFilter(t))
       .filter((t) => q || inFilter(t))
-      .filter((t) => !q || (t.name + ' ' + t.desc).toLowerCase().includes(q))
+      .filter((t) => !q || matches(t, q))
+      // Tools whose name or other names contain the whole search come first.
+      .sort((a, b) => !q ? 0 : phrase(b, q) - phrase(a, q))
       .map(toolCard));
     if (!grid.children.length) grid.append(h('p', { class: 'status' }, 'No tools match that search.'));
   };
@@ -197,15 +218,16 @@ const stat = (n, label) => h('div', { class: 'stat' }, h('b', {}, n), h('span', 
 
 function footer() {
   const col = (title, ids) => h('div', { class: 'fcol' }, h('h4', {}, title),
-    ids.map((id) => toolById(id)).filter(Boolean).map((t) => h('a', { href: '#/tool/' + t.id }, t.name)));
+    ids.map((id) => toolById(id)).filter(Boolean).map((t) => h('a', { href: toolUrl(t.id) }, t.name)));
   return h('footer', { class: 'footer' },
     h('div', { class: 'wrap fgrid' },
-      h('div', { class: 'fcol fbrand' }, h('img', { src: './logo.png', alt: 'EditSupreme', height: 44 }),
+      h('div', { class: 'fcol fbrand' }, h('img', { src: '/logo.png', alt: 'EditSupreme', height: 44 }),
         h('p', {}, 'Your complete PDF editing solution. Everything runs in your browser, so your files stay private.')),
       col('PDF tools', ['merge', 'split', 'compress', 'edit', 'sign', 'ocr']),
       col('Image tools', ['compress-image', 'resize-image', 'remove-background', 'crop-image', 'convert-to-jpg']),
       col('Create', ['design-studio', 'photo-studio', 'creative-apps', 'workflow'])),
-    h('div', { class: 'fbottom' }, `© ${new Date().getFullYear()} EditSupreme · Runs on your device`));
+    h('div', { class: 'fbottom' }, `© ${new Date().getFullYear()} EditSupreme · Runs on your device`,
+      h('nav', { class: 'flegal', 'aria-label': 'About and legal' }, ...[['about', 'About'], ['contact', 'Contact'], ['privacy', 'Privacy Policy'], ['terms', 'Terms of Use']].map(([s, t]) => h('a', { href: `/${s}/` }, t)))));
 }
 
 const FEATURE_COLORS = { install: 'var(--c-convert)', offline: 'var(--c-optimize)', shield: 'var(--accent)', workflow: 'var(--c-flow)' };
@@ -214,7 +236,7 @@ const feature = (ic, title, text) => h('div', { class: 'feature', style: { '--tc
 async function toolPage(id) {
   const meta = toolById(id);
   if (!meta) { location.hash = '#/'; return h('div'); }
-  document.title = `${meta.name} – EditSupreme`;
+  document.title = id === seoTool ? seoTitle : `${meta.name} – EditSupreme`;
   const main = h('main', { class: 'wrap' });
   main.append(h('a', { class: 'back', href: '#/', html: icon('left') + ' All tools' }),
     h('div', { class: 'toolhead', style: { '--tc': CAT_COLOR[meta.cat] } }, h('div', { class: 'ticon lg', html: icon(meta.icon) }),
@@ -237,7 +259,7 @@ async function toolPage(id) {
     if (first.classList.contains('result')) return !downloaded;
     return true;
   };
-  const NON_PDF_INPUT = ['creative-apps', 'vectorcraft', 'lightcraft', 'filmcraft', 'effectcraft', 'soundcraft', 'pdfcraft', 'photo-studio', 'font-finder', 'design-studio', 'image-hd', 'word-to-pdf', 'ppt-to-pdf', 'excel-to-pdf', 'html-to-pdf', 'jpg-to-pdf', 'scan', 'workflow', 'assistant', 'passport-photo', 'audio-to-text'];
+  const NON_PDF_INPUT = ['creative-apps', 'vectorcraft', 'lightcraft', 'filmcraft', 'effectcraft', 'soundcraft', 'pdfcraft', 'photo-studio', 'font-finder', 'design-studio', 'image-hd', 'word-to-pdf', 'ppt-to-pdf', 'excel-to-pdf', 'html-to-pdf', 'jpg-to-pdf', 'scan', 'workflow', 'assistant', 'passport-photo', 'audio-to-text', 'qr-code', 'invoice-generator', 'resume-builder', 'video-to-mp3'];
   const imgTools = TOOLS.filter((t) => (t.cat === 'image' && t.id !== 'html-to-image' && t.id !== id) || t.id === 'jpg-to-pdf');
   const tools = TOOLS.filter((t) => !t.server && t.id !== id && !NON_PDF_INPUT.includes(t.id) && t.cat !== 'image');
   // The editing screen is kept (not thrown away) while the result shows, so "Back to editing" and the
@@ -378,16 +400,24 @@ async function route() {
     app.append(kept.main);
     if (m[1] !== 'assistant') app.append(aiFab());
     leaveGuard = kept.guard; document.title = kept.title;
+    placeSeo(m[1]);
     return;
   }
   if (m) {
     const page = await toolPage(m[1]);
     app.append(page);
     if (m[1] !== 'assistant') app.append(aiFab());
+  } else if (seoTool?.startsWith('page:') && !location.hash) {
+    // About, Contact, Privacy or Terms: the page's own text between the header and the footer.
+    document.title = seoTitle;
+    app.append(h('main', {}, seoEl), footer(), aiFab());
+    window.scrollTo(0, 0);
+    return;
   } else {
     document.title = 'EditSupreme – Your Complete PDF Editing Solution';
     app.append(home(), aiFab());
   }
+  placeSeo(m?.[1]);
   window.scrollTo(0, 0);
 }
 
