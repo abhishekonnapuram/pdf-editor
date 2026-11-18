@@ -14,7 +14,7 @@ export const CRAFT_APPS = [
 ];
 
 function embed(el, a) {
-  const url = `./${a.dir}/index.html`;
+  const url = `/${a.dir}/index.html`;
   const frame = h('iframe', { src: url, title: `${a.app}`, class: 'pcframe', allow: 'fullscreen; clipboard-read; clipboard-write; microphone; autoplay', allowfullscreen: true });
   const box = h('div', { class: 'pcbox' }, frame);
   el.replaceChildren(

@@ -1,0 +1,5 @@
+# The key files are never served to the web (they hold the site's API keys).
+<FilesMatch "^stock-keys(\.example)?\.php$">
+  Require all denied
+</FilesMatch>
+Options -Indexes

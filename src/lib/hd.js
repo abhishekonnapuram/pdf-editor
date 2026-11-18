@@ -17,7 +17,7 @@ async function getUpscaler(scale) {
       const Upscaler = (await import('upscaler')).default;
       const def = (await (scale === 4 ? import('@upscalerjs/esrgan-slim/4x') : import('@upscalerjs/esrgan-slim/2x'))).default;
       // The model files are served by this site (public/models), so it also works offline once cached.
-      const path = new URL(`./models/esrgan-slim/x${scale}/model.json`, location.href).href;
+      const path = new URL(`/models/esrgan-slim/x${scale}/model.json`, location.href).href;
       const up = new Upscaler({ model: { ...def, path } });
       await up.getModel();
       return { tf, up };

@@ -1,7 +1,9 @@
 // Tool catalogue. Implementations are code-split and loaded when a tool is opened.
 export const CATEGORIES = [
   ['all', 'All'],
+  ['ai', 'AI tools'],
   ['design', 'Design Studio'],
+  ['image', 'Image tools'],
   ['photo', 'Creative apps'],
   ['workflows', 'Workflows'],
   ['organize', 'Organize PDF'],
@@ -14,7 +16,7 @@ export const CATEGORIES = [
 
 export const CAT_COLOR = {
   organize: 'var(--c-organize)', optimize: 'var(--c-optimize)', convert: 'var(--c-convert)',
-  edit: 'var(--c-edit)', security: 'var(--c-security)', intel: 'var(--c-intel)', workflows: 'var(--c-flow)', design: 'var(--c-design)', photo: 'var(--c-photo)'
+  edit: 'var(--c-edit)', ai: 'var(--c-ai)', security: 'var(--c-security)', intel: 'var(--c-intel)', workflows: 'var(--c-flow)', design: 'var(--c-design)', image: 'var(--c-image)', photo: 'var(--c-photo)'
 };
 
 const mods = {
@@ -29,12 +31,30 @@ const mods = {
   crafts: () => import('./crafts.js'),
   pagetools: () => import('./pagetools.js'),
   pdfa: () => import('./pdfa.js'),
-  translate: () => import('./translate.js')
+  translate: () => import('./translate.js'),
+  images: () => import('./images.js'),
+  imagestudio: () => import('./imagestudio.js'),
+  aitools: () => import('./aitools.js'),
+  assistant: () => import('./assistant.js'),
+  more: () => import('./more.js'),
+  docs: () => import('./docs.js'),
+  resume: () => import('./resume/editor.js'),
+  fontpairs: () => import('./fontpairs.js'),
+  aiplus: () => import('./aiplus.js'),
+  admaker: () => import('./admaker.js')
 };
 
 const T = (id, name, desc, cat, icon, mod, extra = {}) => ({ id, name, desc, cat, icon, mod, ...extra });
 
 export const TOOLS = [
+  T('assistant', 'AI Assistant', 'Type or say what you want ("compress this PDF under 1 MB", "remove the background and make it white, then resize to 600 x 600") and it runs the right tools on your files.', 'ai', 'mic', 'assistant', { tag: 'New' }),
+  T('ai-video-ad', 'AI video ad maker', 'Make video ads from your photos and clips: give a few words about the offer and ads you like, and AI writes the script, picks fonts, colours and pace, adds motion, music and a voice-over, and exports MP4. Finish it in FilmCraft.', 'ai', 'video', 'admaker', { tag: 'New', keys: 'video ad maker, reel maker, instagram ad, promo video, ad video, product video, youtube shorts maker, video advertisement' }),
+  T('ai-writer', 'AI Writer', 'Ad copy, captions with hashtags, product descriptions, video scripts, headlines and emails, written by free AI on your device.', 'ai', 'pen', 'aiplus', { tag: 'New', keys: 'ai copywriter, caption generator, ad copy generator, product description generator, script writer, slogan generator' }),
+  T('ai-voiceover', 'AI Voice-over', 'Turn text into natural speech for videos, reels and ads, with 13 voices. Free text to speech on your device, download MP3.', 'ai', 'wave', 'aiplus', { tag: 'New', keys: 'text to speech, tts, voice generator, ai voice, voiceover maker, narration' }),
+  T('smart-crop', 'AI Smart crop', 'Crop one photo for every social size at once (Instagram, Stories, YouTube, Facebook, LinkedIn…) with AI that keeps faces and the product in frame.', 'ai', 'crop', 'aiplus', { tag: 'New', keys: 'social media resizer, instagram crop, auto crop, smart resize, thumbnail crop' }),
+  T('passport-photo', 'Passport photo', 'Passport, visa and ID photos for India, USA, UK, Schengen, Canada and more: AI finds your face, replaces the background and sizes your head to the rules, with a print sheet.', 'ai', 'passport', 'aitools', { tag: 'New' }),
+  T('audio-to-text', 'Audio to text', 'Turn speech in audio and video files into text or subtitles (SRT, VTT) in 20+ languages, with Whisper AI on your device.', 'ai', 'wave', 'aitools', { tag: 'New' }),
+  T('chat-pdf', 'Chat with PDF', 'Ask questions about a PDF by typing or speaking, and get the answer with the page it comes from.', 'ai', 'chat', 'aitools', { tag: 'New' }),
   T('creative-apps', 'Creative apps', 'Full creative apps in your browser: photo editing, vector art, RAW photo developing, video editing, motion graphics, audio and PDFs.', 'photo', 'grid', 'crafts', { tag: 'New' }),
   T('photo-studio', 'Photo Studio', 'PhotoCraft, the full photo editor: layers, masks, adjustment layers, filters, layer styles, type, vectors, brushes and PSD files.', 'photo', 'image', 'crafts', { tag: 'New' }),
   T('vectorcraft', 'VectorCraft', 'Vector art in your browser: logos, illustrations and icons with paths, shapes, gradients and type.', 'photo', 'pen', 'crafts', { tag: 'New' }),
@@ -44,6 +64,25 @@ export const TOOLS = [
   T('soundcraft', 'SoundCraft', 'Audio workstation (DAW): record, arrange, mix and edit music, voice-overs and podcasts.', 'photo', 'workflow', 'crafts', { tag: 'New' }),
   T('pdfcraft', 'PdfCraft', 'A full PDF reader and editor app: read, annotate, edit and search PDFs.', 'photo', 'page', 'crafts', { tag: 'New' }),
   T('design-studio', 'Design Studio', 'Create social posts, ads, YouTube thumbnails, banners, posters and business cards with templates, fonts, icons, brand kit and one-click resize.', 'design', 'stamp', 'design', { tag: 'New' }),
+  T('exam-photo', 'Exam photo & signature', 'Make your photo and signature ready for SSC, UPSC, IBPS, NEET and other online forms: exact pixels and KB in one click.', 'image', 'camera', 'more', { tag: 'New', keys: 'photo resize for form, signature resize, ssc photo, upsc photo, ibps photo, neet photo, 20kb, 50kb' }),
+  T('id-card-print', 'ID card print', 'Put the front and back of an Aadhaar, PAN, voter ID or any card on one A4 page at real card size, ready to print.', 'image', 'idcard', 'more', { tag: 'New', keys: 'aadhaar print, aadhar card print, pan card print, id card front back, card print a4' }),
+  T('collage-maker', 'Collage maker', 'Put several photos together in a grid or rows for Instagram, WhatsApp status or print.', 'image', 'collage', 'more', { tag: 'New', keys: 'photo collage, photo grid, combine photos' }),
+  T('image-to-text', 'Image to text', 'Copy the text from photos, screenshots and scans (OCR) in 14 languages, including Hindi and other Indian languages.', 'image', 'ocr', 'more', { tag: 'New', keys: 'ocr image, extract text from image, photo to text, picture to text, jpg to text' }),
+  T('qr-code', 'QR code generator', 'Make QR codes for links, UPI payments, Wi-Fi, contacts, WhatsApp and more, with your colours and logo. PNG and SVG.', 'design', 'qr', 'more', { tag: 'New', keys: 'qr generator, upi qr, wifi qr, qr maker' }),
+  T('video-to-mp3', 'MP4 to MP3', 'Pull the sound out of videos (MP4, WEBM, MOV) or convert audio files to MP3, with optional start and end times.', 'photo', 'music', 'more', { tag: 'New', keys: 'video to mp3, mp4 to mp3, extract audio, audio converter, convert to mp3' }),
+  T('compress-image', 'Compress image', 'Make JPG, PNG, WEBP, SVG and GIF files smaller while keeping them sharp.', 'image', 'compress', 'images'),
+  T('resize-image', 'Resize image', 'Set the size in pixels or by percentage for many JPG, PNG, WEBP, SVG and GIF images at once.', 'image', 'resize', 'images'),
+  T('crop-image', 'Crop image', 'Crop JPG, PNG or GIF images with a visual editor or exact pixels, in common shapes like 1:1 and 16:9.', 'image', 'crop', 'imagestudio'),
+  T('convert-to-jpg', 'Convert to JPG', 'Turn PNG, GIF, TIFF, PSD, SVG, WEBP, HEIC or camera RAW pictures into JPG, many at once.', 'image', 'jpg', 'images'),
+  T('convert-from-jpg', 'Convert from JPG', 'Turn JPG pictures into PNG, WEBP or GIF, or put several JPGs together into an animated GIF.', 'image', 'image', 'images'),
+  T('photo-editor', 'Photo editor', 'Add text, stickers, frames and effects to your photos.', 'image', 'edit', 'imagestudio'),
+  T('upscale-image', 'Upscale image', 'Enlarge JPG and PNG pictures 2× or 4× with on-device AI that adds detail instead of blur.', 'image', 'upscale', 'images', { tag: 'New' }),
+  T('remove-background', 'Remove background', 'Cut out people, products and objects from their background automatically, with on-device AI.', 'image', 'cutout', 'images', { tag: 'New' }),
+  T('watermark-image', 'Watermark image', 'Stamp text or a logo over your images, with font, transparency, rotation and position, or as a mosaic.', 'image', 'stamp', 'images'),
+  T('meme-generator', 'Meme generator', 'Make a meme from your own picture: top and bottom text, captions, any font.', 'image', 'smile', 'imagestudio'),
+  T('rotate-image', 'Rotate image', 'Turn pictures to any angle by dragging with your mouse or finger, or by 90°; mirror and flip too.', 'image', 'rotate', 'imagestudio'),
+  T('html-to-image', 'HTML to image', 'Turn a web page or HTML into a JPG, PNG or SVG picture.', 'image', 'html', 'images'),
+  T('blur-face', 'Blur face', 'Blur faces in photos automatically, and hide licence plates or other private details.', 'image', 'face', 'imagestudio', { tag: 'New' }),
   T('merge', 'Merge PDF', 'Combine PDFs in the order you want. Drag to reorder before merging.', 'organize', 'merge', 'simple'),
   T('split', 'Split PDF', 'Split by ranges, every N pages, or pull out just the pages you need.', 'organize', 'split', 'simple'),
   T('compress', 'Compress PDF', 'Shrink file size with a choice of quality levels and a before/after size report.', 'optimize', 'compress', 'simple'),
@@ -55,7 +94,7 @@ export const TOOLS = [
   T('excel-to-pdf', 'Excel to PDF', 'Convert XLSX/CSV spreadsheets to readable PDF pages.', 'convert', 'excel', 'convert'),
   T('edit', 'Edit PDF', 'Edit existing text, images and even the words inside pictures and scans. Add text, images, shapes and drawings.', 'edit', 'edit', 'editor', { tag: 'Improved' }),
   T('pdf-to-jpg', 'PDF to JPG', 'Save every page as JPG/PNG, or extract all embedded images.', 'convert', 'jpg', 'simple'),
-  T('jpg-to-pdf', 'JPG to PDF', 'Turn images into a PDF, with page size, orientation and margins.', 'convert', 'image', 'simple'),
+  T('jpg-to-pdf', 'JPG to PDF', 'Turn photos and images (JPG, PNG, WEBP, HEIC and more) into a PDF, with page size, orientation and margins.', 'convert', 'image', 'simple', { keys: 'image to pdf, photo to pdf, picture to pdf, png to pdf, heic to pdf, images to pdf' }),
   T('sign', 'Sign PDF', 'Draw, type or upload your signature and place it, with initials and date.', 'security', 'sign', 'editor'),
   T('watermark', 'Watermark', 'Stamp text or an image over pages, with font, opacity, rotation and position.', 'edit', 'stamp', 'simple'),
   T('rotate', 'Rotate PDF', 'Rotate all, odd, even or chosen pages of many PDFs at once.', 'organize', 'rotate', 'simple'),
@@ -78,12 +117,15 @@ export const TOOLS = [
   T('translate', 'Translate PDF', 'Translate a PDF into 30+ languages (Hindi, Telugu, Tamil, Spanish, Arabic, Chinese…) keeping its layout, on your device.', 'intel', 'translate', 'translate'),
   T('pdf-to-md', 'PDF to Markdown', 'Turn PDFs into Markdown with headings, lists and links preserved.', 'convert', 'markdown', 'convert'),
   T('pdf-to-text', 'PDF to Text', 'Extract all text from a PDF into a plain .txt file.', 'convert', 'text', 'convert', { tag: 'Extra' }),
+  T('font-pairs', 'Font pairing', 'Find fonts that go together: 50 hand-picked Google font pairs by design need, tried live on your own picture, with pairs and colours suggested from the image. Make and save your own pairs, export PNG or CSS.', 'design', 'type', 'fontpairs', { tag: 'New', keys: 'font pairing, font combinations, google font pairs, typography, font pairs for logo, font generator' }),
   T('font-finder', 'Font Finder', 'Identify the font in any picture: upload a logo, poster or screenshot and get the closest Google fonts, free to use.', 'design', 'text', 'fonts', { tag: 'New' }),
   T('screenshot-to-template', 'Screenshot to template', 'Upload a screenshot or snapshot of any design: it is rebuilt in high resolution as an editable template (layers, matched fonts) that opens in Design Studio.', 'design', 'scan', 'smart', { tag: 'New' }),
-  T('image-to-layers', 'Image to layers', 'Split a flat design, poster or screenshot into separate layers: text, photos, shapes and graphics you can move, edit and delete.', 'design', 'organize', 'smart', { tag: 'New' }),
+  T('image-to-layers', 'Image to layers', 'Split any photo, design or poster into layers with free on-device AI: click any object or person to cut it out, the background is filled in behind it, and text, shapes and graphics become editable too.', 'design', 'organize', 'smart', { tag: 'New' }),
   T('image-hd', 'Recreate in HD', 'Recreate a picture at 2×, 3× or 4× resolution: text and shapes redrawn razor-sharp, photos enlarged with on-device AI.', 'design', 'image', 'smart', { tag: 'New' }),
   T('image-to-editable','Image to editable', 'Turn a resume or document picture (or scanned PDF) into an editable PDF and Word file that looks exactly the same.', 'convert', 'ocr', 'smart', { tag: 'New' }),
   T('edit-images','Edit PDF images', 'Change the words inside pictures and scanned pages, erase parts of images, replace, crop or recolour them.', 'edit', 'imgedit', 'editor', { tag: 'Extra' }),
+  T('invoice-generator', 'Invoice generator', 'Make GST tax invoices, quotations and bills as PDF, with your logo, UPI QR code and amount in words. Your details are remembered.', 'design', 'invoice', 'docs', { tag: 'New', keys: 'gst invoice, bill maker, quotation maker, invoice maker, billing' }),
+  T('resume-builder', 'Resume builder', 'Make a new resume or edit your old one: import a PDF, Word file or photo, match a design you like, choose from 12 templates, drag to reorder, then download PDF and Word.', 'design', 'resume', 'resume', { tag: 'New', keys: 'cv maker, resume maker, biodata, cv builder, edit resume, update resume, resume editor, resume templates, ats resume' }),
   T('workflow', 'Create a workflow', 'Chain tools together (rotate, watermark, number, compress, protect…) and reuse them anytime.', 'workflows', 'workflow', 'extra')
 ];
 

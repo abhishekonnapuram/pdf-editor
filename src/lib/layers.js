@@ -68,7 +68,12 @@ export async function analyseLayers(canvas, { langs = 'eng', onStatus, withText 
     if (pics.length) eraseRegion(c, pics, 'all');
     bg = { canvas: c };
   }
-  return { W, H, bg, shapes, pictures, graphics, lines };
+  return { W, H, bg, shapes, pictures, graphics, lines, clean };
+}
+
+/** True when the picture has a plain background (a poster, slide or social post rather than a photo). */
+export function looksLikeDesign(canvas) {
+  return findShapes(canvas, []).flatBg;
 }
 
 export function paintShape(g, s, k) {

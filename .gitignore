@@ -11,3 +11,6 @@ public/effectcraft/
 public/soundcraft/
 public/pdfcraft/
 public/.*-tmp/
+
+# Stock photo API keys (never commit)
+public/api/stock-keys.php

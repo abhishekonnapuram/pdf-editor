@@ -1,6 +1,6 @@
 # EditSupreme – Your Complete PDF Editing Solution
 
-Live at https://editsupreme.com. An installable web app (PWA) with 33 PDF tools. Every file is processed on the user's own device: nothing is uploaded, and after the first visit it works offline. One codebase runs in any modern browser on Windows, macOS, Linux, Android, iPhone and iPad, and can be installed like a native app.
+Live at https://editsupreme.com. An installable web app (PWA) with 33 PDF tools and 13 image tools. Every file is processed on the user's own device: nothing is uploaded, and after the first visit it works offline. One codebase runs in any modern browser on Windows, macOS, Linux, Android, iPhone and iPad, and can be installed like a native app.
 
 ## Run it
 
@@ -37,6 +37,16 @@ npm run preview
 | Security | Sign, Protect (AES-256 + permissions), Unlock, Redact |
 | Intelligence | Compare (text + visual), AI Summarizer (Chrome/Edge built-in on-device AI, key-sentence fallback), Translate PDF (30+ languages, layout kept; built-in browser translator or offline Opus-MT models) |
 | Workflows | Chain steps (merge → rotate → watermark → number → compress → protect), save and reuse |
+| Image tools | Compress, Resize, Crop, Convert to JPG, Convert from JPG (PNG, WEBP, GIF, animated GIF), Photo editor, Upscale (AI), Remove background (AI), Watermark, Meme generator, Rotate, HTML to image, Blur face (AI) |
+
+### Image tools
+
+- Read JPG, PNG, WEBP, AVIF, BMP, GIF (every frame), SVG, TIFF (every page), PSD, HEIC/HEIF and camera RAW (CR2, CR3, NEF, ARW, DNG, ORF, RW2, RAF and more: the full-size preview inside the file). Animated GIFs stay animated through compress, resize, crop, rotate and watermark; SVGs stay SVG through compress, resize, crop and rotate.
+- Compress re-encodes JPG/WEBP, reduces PNG and GIF colours and minifies SVG code; a file that can't get smaller is kept as it was.
+- Remove background runs on the device: "Anything" uses ormbg (Apache-2.0, 44 MB), "People" uses MODNet (Apache-2.0, 7 MB), both downloaded once from Hugging Face and cached; "Plain background" needs no download. The new background can be transparent, a colour, a blurred copy or another picture.
+- Blur face finds faces with MediaPipe's face detector (Apache-2.0, loaded from Google's model storage), searching in tiles so small faces in group photos are found too; any other area can be added by dragging. Blur, pixelate or black box.
+- Photo editor opens the photo in the Design Studio editor (text, stickers/icons, frames, filters). Upscale uses the same on-device ESRGAN model as Recreate in HD.
+- The on-device AI models run on the CPU (WebAssembly) so they work on every graphics driver; the ONNX runtime engine is loaded from the CDN copy that matches the bundled version (`src/lib/ai.js`).
 
 ### Improvements over the usual PDF editor
 
@@ -82,6 +92,20 @@ npm run preview
 
 `npm run build` creates a static site in `dist/`. Upload that folder to any static host: Netlify, Vercel, Cloudflare Pages, GitHub Pages, Firebase Hosting, or your own server. It must be served over HTTPS for install/offline/camera to work. All paths are relative, so it also works from a sub-folder.
 
+### Free stock photos (Pexels, Pixabay, Unsplash)
+
+Image tools, Remove background and Design Studio have a **Free stock photo** search. Wikimedia Commons and Openverse work with no setup. To add Pexels, Pixabay and Unsplash for every visitor, the site's own free keys stay on the server in `api/stock.php` (PHP 7.4+, which GoDaddy cPanel has):
+
+1. Get free keys: [Pexels](https://www.pexels.com/api/new/), [Pixabay](https://pixabay.com/api/docs/) and [Unsplash](https://unsplash.com/oauth/applications) (use the app's "Access Key").
+2. Copy `public/api/stock-keys.example.php`, fill in the keys, and upload it as `editsupreme-stock-keys.php` to the folder **above** `public_html` (the web can't reach it there). Or put it next to `stock.php` as `api/stock-keys.php`; `api/.htaccess` blocks it from being downloaded.
+3. Check `https://your-site/api/stock.php?action=status`. It should list the sites that have keys.
+
+Never commit real keys (`public/api/stock-keys.php` is in `.gitignore`). The helper only answers requests from your own site, allows 240 requests per visitor every 10 minutes, and caches searches for an hour. Visitors can also add a key of their own in Design Studio.
+
+### Dark mode and previews
+
+The sun/moon button in the header switches light and dark mode. Until a visitor picks one, the site follows their device setting. Click any file thumbnail, or **Preview** on a result, to see the PDF pages or the picture full size. TIFF, PSD, HEIC, RAW and SVG files get thumbnails too.
+
 ## Store apps (later)
 
 The same build can be wrapped as store apps without rewriting:
@@ -99,6 +123,7 @@ The same build can be wrapped as store apps without rewriting:
 - `src/tools/editor.js`: the page editor (Edit, Sign, Redact, Edit images, Forms designer)
 - `src/tools/pages.js`: Organize, Crop, Compare, Scan
 - `src/tools/smart.js`: OCR and Summarizer
+- `src/tools/images.js`, `src/tools/imagestudio.js`, `src/lib/imgio.js`: the image tools and the picture reader/writer
 - `src/tools/extra.js`: Forms, Workflows, server-only tools
 
 Built with pdf.js, pdf-lib (@cantoo fork with encryption), tesseract.js, docx, pptxgenjs, SheetJS, mammoth, html2canvas and Vite.

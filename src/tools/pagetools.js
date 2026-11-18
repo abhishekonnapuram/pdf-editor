@@ -82,6 +82,7 @@ async function mountPicker(el, [file], ctx, kind) {
         }
       }
       view.destroy();
+      go.disabled = false;
       ctx.finish(outputs, kind === 'remove' ? `Removed ${list.length} page${list.length > 1 ? 's' : ''}; ${n - list.length} left.` : `Extracted ${list.length} page${list.length > 1 ? 's' : ''}.`);
     } catch (e) { console.error(e); toast('Could not save: ' + e.message, 5000); go.disabled = false; }
   }

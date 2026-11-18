@@ -5,7 +5,7 @@ import { icon } from '../lib/icons.js';
 import { SIZES, sizeById, TEMPLATES, ensureFonts, loadDraft } from '../lib/design.js';
 
 // Open the editor on a W×H canvas (1 PDF point per pixel, so downloads come out at the design size).
-async function openDesign(el, ctx, { W, H, objs, name = 'design', sizeId, groups = {} }) {
+export async function openDesign(el, ctx, { W, H, objs, name = 'design', sizeId, groups = {} }, restart) {
   const { mountEditor } = await import('./editor.js');
   const d = await PDFDocument.create();
   d.addPage([W, H]);
@@ -26,7 +26,7 @@ async function openDesign(el, ctx, { W, H, objs, name = 'design', sizeId, groups
   }
   el.replaceChildren();
   window.scrollTo({ top: 0 });
-  await mountEditor(el, file, { ...ctx, restart: () => studioHome(el, ctx) }, 'design', { initial: [objs], groups, name, sizeId });
+  await mountEditor(el, file, { ...ctx, restart: restart || (() => studioHome(el, ctx)) }, 'design', { initial: [objs], groups, name, sizeId });
 }
 
 const blank = (W, H) => [{ type: 'rect', layer: 'Background', isBg: true, locked: true, x: 0, y: 0, w: W, h: H, fill: '#ffffff', stroke: '#ffffff', sw: 0, opacity: 100 }];
@@ -65,6 +65,11 @@ async function studioHome(el, ctx) {
   el.replaceChildren(h('div', { class: 'studio' },
     h('p', { class: 'status', style: { marginTop: 0 } }, 'Make social posts, ads, thumbnails, banners, posters and cards. Everything stays on your device.'),
     h('div', { class: 'startrow' },
+      card('plus', 'New blank project', 'Pick a size (Instagram post, story, A4, YouTube thumbnail…) or type your own, then start with an empty canvas.', async () => {
+        const { pickDesignSize, blankDesign } = await import('./editor.js');
+        const pick = await pickDesignSize({ onTemplates: () => tplGrid.scrollIntoView({ behavior: 'smooth' }) });
+        if (pick) openDesign(el, ctx, { W: pick.W, H: pick.H, objs: blankDesign(pick.W, pick.H), name: pick.name, sizeId: pick.sizeId });
+      }),
       draft ? card('edit', 'Continue your last design', `${Math.round(draft.W)} × ${Math.round(draft.H)} px, saved ${new Date(draft.savedAt).toLocaleString()}`, () => openDesign(el, ctx, draft)) : null,
       card('organize', 'Start from a picture', 'Upload any design; it is split into editable layers (text, photos, shapes, graphics) with matching Google fonts.', () => fromPicture('auto')),
       card('scan', 'Recreate a screenshot as a template', 'Low-resolution screenshot or snapshot of a design? It is rebuilt sharp in high resolution, as editable layers.', () => fromPicture('always')),
